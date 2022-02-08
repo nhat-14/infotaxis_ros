@@ -23,7 +23,7 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
     nh->param<std::string>("results_file", results_file, "/home/nhat/Documents/infotaxis");
     
     // Subscribers & publisher 
-    gas_sub_  = nh->subscribe(enose_topic,1,&InfotaxisGSL::gasCallback, this);
+    gas_sub_  = nh->subscribe(enose_topic,1,&InfotaxisGSL::gasCallback2, this);
     wind_sub_ = nh->subscribe(anemometer_topic,1,&InfotaxisGSL::windCallback, this);
     map_sub_  = nh->subscribe(map_topic, 1, &InfotaxisGSL::mapCallback, this);
 
@@ -120,7 +120,7 @@ void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
     ROS_WARN("[Infotaxis] STARTING THE SEARCH");
 }
 
-void InfotaxisGSL::gasCallback(const std_msgs::String::ConstPtr& msg) {
+void InfotaxisGSL::gasCallback2(const std_msgs::String::ConstPtr& msg) {
     if (current_state == Infotaxis_state::STOP_AND_MEASURE) {
         if (msg->data.c_str() == "nothing") {
             gasHit = false;
@@ -130,6 +130,8 @@ void InfotaxisGSL::gasCallback(const std_msgs::String::ConstPtr& msg) {
         }
     }
 }
+
+void InfotaxisGSL::gasCallback(const olfaction_msgs::gas_sensorPtr& msg) {}
 
 void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
     //1. Add obs to the vector of the last N wind speeds
