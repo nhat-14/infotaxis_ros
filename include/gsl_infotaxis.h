@@ -8,6 +8,7 @@
 #include <bits/stdc++.h>
 #include <unordered_set>
 #include <gmrf_wind_mapping/WindEstimation.h>
+#include "std_msgs/String.h"
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 enum class Infotaxis_state {WAITING_FOR_MAP, EXPLORATION, STOP_AND_MEASURE, MOVING};
@@ -36,9 +37,9 @@ class InfotaxisGSL:public GSLAlgorithm {
         void getGasWindObservations();
         Infotaxis_state getState();
         void setGoal();
-
+    
     protected:
-        void gasCallback(const olfaction_msgs::gas_sensorPtr& msg) override;
+        void gasCallback(const std_msgs::String::ConstPtr& msg);
         void windCallback(const olfaction_msgs::anemometerPtr& msg) override;
         void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) override;
         void goalDoneCallback(const actionlib::SimpleClientGoalState &state, const move_base_msgs::MoveBaseResultConstPtr &result) override;

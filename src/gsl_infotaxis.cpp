@@ -12,7 +12,6 @@ Cell::Cell(bool f, double a, double b, double c) {
 }
 
 InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
-    nh->param<double>("th_gas_present", th_gas_present, 0.3);
     nh->param<double>("th_wind_present", th_wind_present, 0.03);
     nh->param<double>("stop_and_measure_time", stop_and_measure_time, 3);
     nh->param<double>("scale", scale, 65);                      //scale for dynamic map reduction
@@ -121,10 +120,14 @@ void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
     ROS_WARN("[Infotaxis] STARTING THE SEARCH");
 }
 
-void InfotaxisGSL::gasCallback(const olfaction_msgs::gas_sensorPtr& msg) {
-    //Only save gas data if we are in the Stop_and_Measure
+void InfotaxisGSL::gasCallback(const std_msgs::String::ConstPtr& msg) {
     if (current_state == Infotaxis_state::STOP_AND_MEASURE) {
-        stop_and_measure_gas_v.push_back(msg->raw);
+        if (msg->data.c_str() == "nothing") {
+            gasHit = false;
+        }
+        else {
+            gasHit = true;
+        }
     }
 }
 
@@ -167,31 +170,25 @@ void InfotaxisGSL::goalDoneCallback(const actionlib::SimpleClientGoalState &stat
 //Wind direction is reported as DownWind in the map frame_id
 //Being positive to the right, negative to the left, range [-pi,pi]
 void InfotaxisGSL::getGasWindObservations() {
-    if( (ros::Time::now() - time_stopped).toSec() >= stop_and_measure_time ) {
-        // average_concentration  = get_average_vector(stop_and_measure_gas_v);
-        average_concentration  = *max_element(stop_and_measure_gas_v.begin(), stop_and_measure_gas_v.end());     
+    if( (ros::Time::now() - time_stopped).toSec() >= stop_and_measure_time ) {  
         average_wind_direction = get_average_wind_direction(stop_and_measure_windD_v);
         average_wind_speed     = get_average_vector(stop_and_measure_windS_v);
-
-        stop_and_measure_gas_v.clear();
         stop_and_measure_windS_v.clear();
         previous_robot_pose=Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); 
         previous_state = current_state;
 
         //Check thresholds and set new search-state
         if (verbose) ROS_ERROR("[GSL-INFOTAXIS]   avg_gas=%.3f    avg_wind_speed=%.3f     avg_wind_dir=%.3f", average_concentration, average_wind_speed, average_wind_direction);
-        if (average_concentration > th_gas_present && average_wind_speed > th_wind_present) {
+        if (gasHit == true && average_wind_speed > th_wind_present) {
             //Gas & wind
-            gasHit = true;
             // previous_robot_pose = Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); //register where you were before moving
             estimateProbabilities(cells, true, average_wind_direction, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
             if (verbose) ROS_WARN("[Infotaxis] GAS HIT!!!   New state --> MOVING");
         }
 
-        else if (average_concentration > th_gas_present) {
+        else if (gasHit==true) {
             //Only gas
-            gasHit=true;
             // previous_robot_pose=Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); 
             current_state = Infotaxis_state::STOP_AND_MEASURE;
             if (verbose) ROS_WARN("[Infotaxis] GAS, BUT NO WIND   STOP_AND_MEASURE");
@@ -199,20 +196,16 @@ void InfotaxisGSL::getGasWindObservations() {
 
         else if (average_wind_speed > th_wind_present) {
             //Only Wind
-            gasHit=false;
             estimateProbabilities(cells, false, average_wind_direction, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
             if (verbose) ROS_WARN("[Infotaxis] NO GAS HIT   New state --> MOVING");
         }
         else {
             //Nothing
-            gasHit=false;
             estimateProbabilities(cells, false, average_wind_direction, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
             if (verbose) ROS_WARN("[INFOTAXIS] NOTHING!!!! New state --> MOVING");
         }
-
-        
         
         if (gasHit == true) {
             hit_notify(1,0,0);

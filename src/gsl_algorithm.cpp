@@ -26,7 +26,7 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
     //===================== Load Parameters ===================
     nh->param<int>("moving_average_size", moving_average_size, 10);
 
-    nh->param<std::string>("enose_topic", enose_topic, "/PID/Sensor_reading");
+    nh->param<std::string>("enose_topic", enose_topic, "/arx");
     nh->param<std::string>("anemometer_topic", anemometer_topic, "/Anemometer/WindSensor_reading");
     nh->param<std::string>("robot_location_topic", robot_location_topic, "/amcl_pose");
     nh->param<std::string>("map_topic", map_topic, "/map");
