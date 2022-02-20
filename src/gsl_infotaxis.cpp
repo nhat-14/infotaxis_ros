@@ -43,7 +43,7 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
     ROS_INFO("[Infotaxis] INITIALIZATON COMPLETED--> WAITING_FOR_MAP");
   	ros::NodeHandle n;
     clientW = n.serviceClient<gmrf_wind_mapping::WindEstimation>("/WindEstimation");            //de y!! tam thoi bo qua
-    entropy_gain_his.push_back(0.0);
+    entropy_gain_rate.push_back(0.0); 
 }
 
 InfotaxisGSL::~InfotaxisGSL() {
@@ -384,15 +384,28 @@ void InfotaxisGSL::cancel_navigation() {
 void InfotaxisGSL::updateSets() {
     int i = currentPosIndex.x(), j = currentPosIndex.y();
     // closedMoveSet.insert(std::pair<int,int>(i,j));
+    ROS_ERROR("ENTROPY_GAINNNNNNN: %f, %li", get_average_vector(entropy_gain_rate), entropy_gain_rate.size());
+
+    if (number_revisited > 0){
+        ros::Duration time_spent = ros::Time::now() - last_revisited;
+        if (time_spent.toSec() > 60.0) {
+            number_revisited = 0;
+            visitedSet.clear();
+            ROS_WARN("CLEANNNNNNNNNNNNNNNNNNNNNNN!!!!!!");
+        }
+    }
 
     if (visitedSet.find(std::pair<int,int>(i,j)) != visitedSet.end()) {
+        last_revisited = ros::Time::now();
+        
         number_revisited += 1;
-        ROS_ERROR("number of revisited: %i, %f", number_revisited, get_average_vector(entropy_gain_rate));
+        ROS_ERROR("number of revisited: %li", number_revisited);
 
-        get_average_vector(entropy_gain_rate);
-        if ((number_revisited > 5 && get_average_vector(entropy_gain_rate) < 0.01) || number_revisited > 10) {
+        if ((number_revisited > 5 && get_average_vector(entropy_gain_rate) < 0.05) || number_revisited > 10) {
             planning_mode = 1;
             number_revisited = 0;
+            visitedSet.clear();
+            ROS_WARN("SWITCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!");
         }
     }
     visitedSet.insert(std::pair<int,int>(i,j));
@@ -439,7 +452,8 @@ void InfotaxisGSL::setGoal() {
             closedMoveSet.clear();
         }
 
-        entropy_gain_rate.push_back(ent - entropy_gain_his.back());   
+        // entropy_gain_rate.push_back(ent - entropy_gain_his.back());   
+        entropy_gain_rate.push_back(ent);   
         if (entropy_gain_rate.size() > 5) {
             std::vector<float>::iterator it;
             it = entropy_gain_rate.begin();
@@ -450,7 +464,7 @@ void InfotaxisGSL::setGoal() {
         ROS_ERROR("Step: %i", entropy_gain_his.size());
 
         std_msgs::Float32 max_entropy_gain;
-        max_entropy_gain.data = ent;    
+        max_entropy_gain.data = get_average_vector(entropy_gain_rate);    
         entropy_reporter.publish(max_entropy_gain);
         openMoveSet.erase(std::pair<int,int>(i,j));
     }

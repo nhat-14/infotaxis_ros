@@ -47,6 +47,7 @@ class InfotaxisGSL:public GSLAlgorithm {
 
         //Measurements
         ros::Time time_stopped; 
+        ros::Time last_revisited;
         double stop_and_measure_time;                                       //! (seconds) time the robot is stopped while measuring the wind direction
         bool gasHit;
         double th_gas_present;
