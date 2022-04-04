@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
         if(!infotatic.get_inMotion()) {
             switch(infotatic.getState()){
                 case Infotaxis_state::WAITING_FOR_MAP:
-                    ROS_INFO("[INFOTAXIS] Waiting for the map of the environment!...."); 
+                    ROS_INFO("Waiting for the map of the environment!...."); 
                     break;
                 case Infotaxis_state::STOP_AND_MEASURE:
                     infotatic.getGasWindObservations();
@@ -20,23 +20,21 @@ int main(int argc, char** argv) {
                     infotatic.setGoal();
                     break;
                 default:
-                    ROS_ERROR("[INFOTAXIS] Search state is undefined!");
+                    ROS_ERROR("!!!Search state is undefined!!!");
             }
         }
         loop_rate.sleep();
     }
 
-
     int is_found = infotatic.checkSourceFound(); // res: 0(fail) 2(cancelled) 1(sucess)
-
     if (is_found == 1) { 
-        ROS_INFO("[GSL_server]: Found the emission source!! ");
+        ROS_INFO("Found the emission source!! ");
     }
     else if (is_found == 2) { // Canceled/Preempted by user?
-        ROS_INFO("[GSL_server]: Action cancelled/preemted");
+        ROS_INFO("Action cancelled/preemted");
     }
     else {
-        ROS_INFO("[GSL_server]: Couldn't find the gas source! SORRY!");
+        ROS_INFO("Couldn't find the gas source! SORRY!");
     }
     ros::shutdown();
     ros::spin();
