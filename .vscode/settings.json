@@ -12,7 +12,18 @@
         "initializer_list": "cpp",
         "regex": "cpp",
         "valarray": "cpp",
-        "dense": "cpp"
+        "dense": "cpp",
+        "*.tcc": "cpp",
+        "*.ipp": "cpp",
+        "bitset": "cpp",
+        "optional": "cpp",
+        "algorithm": "cpp",
+        "random": "cpp",
+        "istream": "cpp",
+        "numeric": "cpp",
+        "streambuf": "cpp",
+        "type_traits": "cpp",
+        "tuple": "cpp"
     },
     "cmake.configureOnOpen": false
 }

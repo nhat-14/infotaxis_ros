@@ -74,7 +74,6 @@ class GSLAlgorithm
 
         bool checkGoal(move_base_msgs::MoveBaseGoal * goal);
         float get_average_vector(std::vector<float> const &v);
-        virtual void save_results_to_file(int result);
 };
 
 #endif

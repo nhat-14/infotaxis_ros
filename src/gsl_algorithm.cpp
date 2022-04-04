@@ -147,7 +147,6 @@ int GSLAlgorithm::checkSourceFound() {
         ros::Duration time_spent = ros::Time::now() - start_time;
         if (time_spent.toSec() > max_search_time) {
             ROS_INFO("[PlumeTracking] - FAILURE-> Time spent (%.3f s) > max_search_time = %.3f", time_spent.toSec(), max_search_time);
-            save_results_to_file(0);
             return 0;
         }
 
@@ -158,99 +157,9 @@ int GSLAlgorithm::checkSourceFound() {
 
         if (dist < distance_found) {
             ROS_INFO("[PlumeTracking] - SUCCESS -> Time spent (%.3f s)", time_spent.toSec());
-            save_results_to_file(1);
             return 1;
         }
     }
     //In other case, we are still searching (keep going)
     return -1;
-}
-
-// Ignore this part
-void GSLAlgorithm::save_results_to_file(int result) 
-{
-    mb_ac.cancelAllGoals();
-
-    //1. Search time.
-    ros::Duration time_spent = ros::Time::now() - start_time;
-    double search_t = time_spent.toSec();
-
-
-    // 2. Search distance
-    // Get distance from array of path followed (vector of PoseWithCovarianceStamped
-    double search_d;
-    double Ax, Ay, d = 0;
-
-    for (size_t h=1; h<robot_poses_vector.size(); h++)
-    {
-        Ax = robot_poses_vector[h-1].pose.pose.position.x - robot_poses_vector[h].pose.pose.position.x;
-        Ay = robot_poses_vector[h-1].pose.pose.position.y - robot_poses_vector[h].pose.pose.position.y;
-        d += sqrt( pow(Ax,2) + pow(Ay,2) );
-    }
-    search_d = d;
-
-
-
-    // 3. Navigation distance (from robot to source)
-    // Estimate the distances by getting a navigation path from Robot initial pose to Source points in the map
-    double nav_d;
-    geometry_msgs::PoseStamped source_pose;
-    source_pose.header.frame_id = "map";
-    source_pose.header.stamp = ros::Time::now();
-    source_pose.pose.position.x = source_pose_x;
-    source_pose.pose.position.y = source_pose_y;
-
-    // Set MoveBase srv to estimate the distances
-    mb_ac.cancelAllGoals();
-    nav_msgs::GetPlan mb_srv;
-    mb_srv.request.start.header.frame_id = "map";
-    mb_srv.request.start.header.stamp  = ros::Time::now();
-    mb_srv.request.start.pose = robot_poses_vector[0].pose.pose;
-    mb_srv.request.goal = source_pose;
-
-    // Get path
-    if( !mb_client.call(mb_srv) )
-    {
-        ROS_ERROR("[GSL-PlumeTracking] Unable to GetPath from MoveBase");
-        nav_d = -1;
-    }
-    else
-    {
-        // get distance [m] from vector<pose>
-        double Ax, Ay, d = 0;
-        for (size_t h=0; h<mb_srv.response.plan.poses.size(); h++)
-        {
-            if (h==0)
-            {
-                Ax = mb_srv.request.start.pose.position.x - mb_srv.response.plan.poses[h].pose.position.x;
-                Ay = mb_srv.request.start.pose.position.y - mb_srv.response.plan.poses[h].pose.position.y;
-            }
-            else
-            {
-                Ax = mb_srv.response.plan.poses[h-1].pose.position.x - mb_srv.response.plan.poses[h].pose.position.x;
-                Ay = mb_srv.response.plan.poses[h-1].pose.position.y - mb_srv.response.plan.poses[h].pose.position.y;
-            }
-            d += sqrt( pow(Ax,2) + pow(Ay,2) );
-        }
-        nav_d = d;
-    }
-
-    // 4. Nav time
-    double nav_t = nav_d/0.4;   //assumming a cte speed of 0.4m/s
-    std::string str = boost::str(boost::format("[PlumeTracking] RESULT IS: Success=%u, Search_d=%.3f, Nav_d=%.3f, Search_t=%.3f, Nav_t=%.3f\n") % result % search_d % nav_d % search_t % nav_t).c_str();
-    ROS_INFO(str.c_str());
-
-
-    //Save to file
-    
-    if (FILE* output_file=fopen(results_file.c_str(), "w"))
-    {
-        fprintf(output_file, "%s", str.c_str());
-        for(geometry_msgs::PoseWithCovarianceStamped p : robot_poses_vector){
-            fprintf(output_file, "%f, %f\n", p.pose.pose.position.x, p.pose.pose.position.y);
-        }
-        fclose(output_file);
-    }
-    else
-        ROS_ERROR("Unable to open Results file at: %s", results_file.c_str());
 }

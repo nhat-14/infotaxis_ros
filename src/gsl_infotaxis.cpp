@@ -21,7 +21,6 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
     nh->param<double>("stdev_miss", stdev_miss, 2.0);
     nh->param<double>("ground_truth_x", ground_truth_x, 1.5);
     nh->param<double>("ground_truth_y", ground_truth_y, 3.0);
-    nh->param<std::string>("results_file", results_file, "/home/nhat/Documents/infotaxis");
     
     // Subscribers & publisher 
     gas_sub_  = nh->subscribe(enose_topic,1,&InfotaxisGSL::gasCallback, this);
@@ -399,13 +398,13 @@ void InfotaxisGSL::updateSets() {
         last_revisited = ros::Time::now();
         
         number_revisited += 1;
-        ROS_ERROR("number of revisited: %li", number_revisited);
+        ROS_ERROR("number of revisited: %i", number_revisited);
 
         if ((number_revisited > 5 && get_average_vector(entropy_gain_rate) < 0.05) || number_revisited > 10) {
             planning_mode = 1;
             number_revisited = 0;
             visitedSet.clear();
-            ROS_WARN("SWITCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!");
+            ROS_WARN("SWITCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!");
         }
     }
     visitedSet.insert(std::pair<int,int>(i,j));
@@ -461,7 +460,7 @@ void InfotaxisGSL::setGoal() {
         }
         
         entropy_gain_his.push_back(ent);
-        ROS_ERROR("Step: %i", entropy_gain_his.size());
+        ROS_ERROR("Step: %li", entropy_gain_his.size());
 
         std_msgs::Float32 max_entropy_gain;
         max_entropy_gain.data = get_average_vector(entropy_gain_rate);    
@@ -660,28 +659,6 @@ Eigen::Vector3d InfotaxisGSL::valueToColor(double val, double low, double high){
 
 Infotaxis_state InfotaxisGSL::getState(){
     return current_state;
-}
-
-void InfotaxisGSL::save_results_to_file(int result, int i, int j) {
-    mb_ac.cancelAllGoals();
-
-    //1. Search time.
-    ros::Duration time_spent = ros::Time::now() - start_time;
-    double search_t = time_spent.toSec();
-
-    std::string str = boost::str(boost::format("[InfotaxisGSL] RESULT IS: Success=%u, Search_t=%.3f \n") % result % search_t).c_str();
-    ROS_INFO(str.c_str());
-
-
-    Eigen::Vector2d pos = indexToCoordinates(i,j);
-    double error = sqrt(pow(ground_truth_x-pos.x(),2) + pow(ground_truth_y-pos.y(),2));
-    //Save to file
-    std::ofstream file;
-    file.open(results_file, std::ios_base::app);
-
-    for(geometry_msgs::PoseWithCovarianceStamped p : robot_poses_vector){
-       file<<p.pose.pose.position.x<<", "<<p.pose.pose.position.y<<"\n";
-    }
 }
 
 void InfotaxisGSL::switch_notify(double r, double g, double b) {

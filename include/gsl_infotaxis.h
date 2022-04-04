@@ -32,7 +32,6 @@ class InfotaxisGSL:public GSLAlgorithm {
     public:
         InfotaxisGSL(ros::NodeHandle *nh);
         ~InfotaxisGSL();
-        
         void getGasWindObservations();
         Infotaxis_state getState();
         void setGoal();
@@ -128,5 +127,4 @@ class InfotaxisGSL:public GSLAlgorithm {
         double t1;
         double convergence_thr;
         double ground_truth_x, ground_truth_y;
-        void save_results_to_file(int result, int i, int j);
 };
