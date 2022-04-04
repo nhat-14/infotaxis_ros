@@ -37,7 +37,6 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
 
     //======================= Services ========================
     mb_client = nh_->serviceClient<nav_msgs::GetPlan>("/move_base/GlobalPlanner/make_plan");
-    ROS_INFO("INITIALIZATON COMPLETED--> WAITING_FOR_MAP");
     inMotion = false;
     inExecution = false;
 }
@@ -71,17 +70,14 @@ void GSLAlgorithm::goalActiveCallback(){}
 void GSLAlgorithm::goalFeedbackCallback(const move_base_msgs::MoveBaseFeedbackConstPtr &feedback){}
 
 
-//===============================================================================
-//                                   AUX
-//===============================================================================
-
+//===================================================================
+//                            AUX
+//====================================================================
 bool GSLAlgorithm::get_inMotion() {
     return inMotion;
 }
 
-
-float GSLAlgorithm::get_average_vector(std::vector<float> const &v)
-{
+float GSLAlgorithm::get_average_vector(std::vector<float> const &v) {
     size_t length = v.size();
     float sum = 0.0;
     for(std::vector<float>::const_iterator i = v.begin(); i != v.end(); ++i)

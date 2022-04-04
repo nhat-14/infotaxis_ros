@@ -55,7 +55,7 @@ InfotaxisGSL::~InfotaxisGSL() {}
 void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
     map_ = *msg;
 
-    ROS_INFO("[Infotaxis] Got the map of the environment!");
+    ROS_INFO("Got the map of the environment!");
     ROS_INFO("--------------INFOTAXIS GSL---------------");
     ROS_INFO("Occupancy Map dimensions:"); //i is y(height), j is x(width)
     ROS_INFO("x_min:%.2f x_max:%.2f / y_min:%.2f y_max:%.2f",
@@ -89,7 +89,7 @@ void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
             bool libre=true;                        //free cell?
             for(int row=i; row<map_origin.size() && row<i+scale; row++){
                 for(int col=j;col<map_origin[0].size()&&col<j+scale;col++){
-                    if(map_origin[row][col]!=1){          //if one small cell is not free, the whole big cell is not free
+                    if(map_origin[row][col]!=1){    //if one small cell is not free, the whole big cell is not free
                         libre = false;
                     }
                 }
@@ -108,13 +108,13 @@ void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
 
     normalizeWeights(cells);
     showWeights();
-
-    //Start the fun!!
     cancel_navigation();
+    
+    //Start the fun!!
     current_state = Infotaxis_state::STOP_AND_MEASURE;
-    start_time    = ros::Time::now();  //start measuring time
-    robot_poses_vector.clear();        //start measuring distance
     inExecution = true;
+    start_time = ros::Time::now();  //start measuring time
+    robot_poses_vector.clear();        //start measuring distance
     ROS_WARN("[Infotaxis] STARTING THE SEARCH");
 }
 
@@ -159,7 +159,6 @@ void InfotaxisGSL::goalDoneCallback(const actionlib::SimpleClientGoalState &stat
 }
 
 //========================================== ESTIMATE ===================================================
-
 //Get averaged values of the observations taken while standing
 //Wind direction is reported as DownWind in the map frame_id
 //Being positive to the right, negative to the left, range [-pi,pi]
@@ -176,14 +175,14 @@ void InfotaxisGSL::getGasWindObservations() {
         previous_state = current_state;
 
         //Check thresholds and set new search-state
-        ROS_ERROR("[GSL-INFOTAXIS]   avg_gas=%.3f    avg_wind_speed=%.3f     avg_wind_dir=%.3f", average_concentration, average_wind_speed, average_wind_direction);
+        ROS_ERROR("avg_gas=%.3f    avg_wind_speed=%.3f     avg_wind_dir=%.3f", average_concentration, average_wind_speed, average_wind_direction);
         if (average_concentration > th_gas_present && average_wind_speed > th_wind_present) {
             //Gas & wind
             gasHit = true;
             // previous_robot_pose = Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); //register where you were before moving
             estimateProbabilities(cells, true, average_wind_direction, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
-            ROS_WARN("[Infotaxis] GAS HIT!!!   New state --> MOVING");
+            ROS_WARN("GAS HIT!!!   New state --> MOVING");
         }
 
         else if (average_concentration > th_gas_present) {
@@ -191,7 +190,7 @@ void InfotaxisGSL::getGasWindObservations() {
             gasHit=true;
             // previous_robot_pose=Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); 
             current_state = Infotaxis_state::STOP_AND_MEASURE;
-            ROS_WARN("[Infotaxis] GAS, BUT NO WIND   STOP_AND_MEASURE");
+            ROS_WARN("GAS, BUT NO WIND   STOP_AND_MEASURE");
         }
 
         else if (average_wind_speed > th_wind_present) {
@@ -199,7 +198,7 @@ void InfotaxisGSL::getGasWindObservations() {
             gasHit=false;
             estimateProbabilities(cells, false, average_wind_direction, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
-            ROS_WARN("[Infotaxis] NO GAS HIT   New state --> MOVING");
+            ROS_WARN("NO GAS HIT   New state --> MOVING");
         }
         else {
             //Nothing
@@ -208,15 +207,7 @@ void InfotaxisGSL::getGasWindObservations() {
             current_state = Infotaxis_state::MOVING;
             ROS_WARN("[INFOTAXIS] NOTHING!!!! New state --> MOVING");
         }
-
-        
-        
-        if (gasHit == true) {
-            hit_notify(1,0,0);
-        }
-        else {
-            hit_notify(0,1,0);
-        }
+        hit_notify();
     }
 }
 
@@ -434,7 +425,6 @@ void InfotaxisGSL::setGoal() {
     double entAux = 0;
 
     if (planning_mode == 0) {
-        switch_notify(0,1,0);
         if(!openMoveSet.empty()) {
             for (auto &p:wind) {
                 int r=p.i; int c=p.j;
@@ -467,7 +457,6 @@ void InfotaxisGSL::setGoal() {
     }
 
     else {
-        switch_notify(1,0,0);
         double max=0;
         // Detect max and min weights in the map
         for(int a=0; a<cells.size(); a++) {
@@ -481,6 +470,7 @@ void InfotaxisGSL::setGoal() {
         planning_mode = 0;
         openMoveSet.erase(std::pair<int,int>(i,j));
     }
+    switch_notify();
     moveTo(i,j);
 }
 
@@ -526,7 +516,7 @@ void InfotaxisGSL::moveTo(int i, int j) {
     goal.target_pose.pose.position.y = coordR.y();
     goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
 
-    ROS_INFO("[Infotaxis] MOVING TO %f,%f",pos.x(),pos.y());
+    ROS_INFO("MOVING TO %f,%f",pos.x(),pos.y());
     
     mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
     
@@ -659,7 +649,11 @@ Infotaxis_state InfotaxisGSL::getState(){
     return current_state;
 }
 
-void InfotaxisGSL::switch_notify(double r, double g, double b) {
+void InfotaxisGSL::switch_notify() {
+    double r=0, g=1, b=0;   //green
+    if (planning_mode == 1) {
+        r=1; g=0; b=0;      //red
+    }
     visualization_msgs::Marker marker;
     marker.header.frame_id="map";
     marker.header.stamp=ros::Time::now();
@@ -683,7 +677,11 @@ void InfotaxisGSL::switch_notify(double r, double g, double b) {
     switch_marker.publish( marker );
 }
 
-void InfotaxisGSL::hit_notify(double r, double g, double b) {
+void InfotaxisGSL::hit_notify() {
+    double r=0, g=1, b=0;   //green
+    if (gasHit == true) {
+        r=1; g=0; b=0;      //red
+    }
     visualization_msgs::Marker marker;
     marker.header.frame_id="map";
     marker.header.stamp=ros::Time::now();

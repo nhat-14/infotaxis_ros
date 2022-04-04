@@ -111,8 +111,8 @@ class InfotaxisGSL:public GSLAlgorithm {
         ros::Publisher entropy_reporter;
         ros::Publisher switch_marker;
         ros::Publisher hit_marker;
-        void switch_notify(double r, double g, double b);
-        void hit_notify(double r, double g, double b);
+        void switch_notify();
+        void hit_notify();
         Eigen::Vector2i currentPosIndex;
         
         //Auxiliary functions
