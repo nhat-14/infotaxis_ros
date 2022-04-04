@@ -34,9 +34,6 @@ class GSLAlgorithm
         bool inMotion;                                                      //! Determines if a goal has been set and we are moving towards it
         std::string enose_topic, anemometer_topic, robot_location_topic, map_topic;
 
-        int moving_average_size;
-
-        bool verbose;
         bool inExecution;
         ros::Time start_time;
         double max_search_time;
@@ -64,9 +61,6 @@ class GSLAlgorithm
         ros::ServiceClient srv_GDM_client;
 
         //CallBacks
-        virtual void gasCallback(const olfaction_msgs::gas_sensorPtr& msg)=0;
-        virtual void windCallback(const olfaction_msgs::anemometerPtr& msg)=0;
-        virtual void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)=0;
         virtual void goalDoneCallback(const actionlib::SimpleClientGoalState &state, const move_base_msgs::MoveBaseResultConstPtr &result);
         void localizationCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &msg);
         void goalActiveCallback();

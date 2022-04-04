@@ -1,31 +1,25 @@
 #include <gsl_algorithm.h>
 #include <boost/format.hpp>
 
-GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", true)
-{
+GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", true) {
     srand(time(NULL));      //initialize random seed
-
-    ROS_INFO("[GSL_NODE] Waiting for the move_base action server to come online...");
+    ROS_INFO("Waiting for the move_base action server...");
     bool mb_aconline = false;
     for(int i=0 ; i<10 ; i++) {
         if(mb_ac.waitForServer(ros::Duration(1.0))) {
             mb_aconline = true;
             break;
         }
-        ROS_INFO("[GSL_NODE] Unable to find the move_base action server, retrying...");
+        ROS_INFO("Unable to find the move_base action server, retrying...");
     }
-
     if(!mb_aconline) {
-        ROS_FATAL("[GSL_NODE] No move_base node found. Please ensure the move_base node is active.");
+        ROS_FATAL("No move_base node found. Please ensure the move_base node is active.");
         ROS_BREAK();
         return;
     }
-    ROS_INFO("[GSL_NODE] Found MoveBase! Initializing module...");
-
+    ROS_INFO("Found MoveBase! Initializing module...");
 
     //===================== Load Parameters ===================
-    nh->param<int>("moving_average_size", moving_average_size, 10);
-
     nh->param<std::string>("enose_topic", enose_topic, "/PID/Sensor_reading");
     nh->param<std::string>("anemometer_topic", anemometer_topic, "/Anemometer/WindSensor_reading");
     nh->param<std::string>("robot_location_topic", robot_location_topic, "/amcl_pose");
@@ -37,17 +31,13 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
     nh->param<double>("ground_truth_y", source_pose_y, 3.0);
     nh->param<double>("robot_pose_x", robot_pose_x, 0.0);
     nh->param<double>("robot_pose_y", robot_pose_y, 0.0);
-    nh->param<bool>("verbose",verbose,true);
 
     //====================== Subscribers ======================
-    gas_sub_ = nh->subscribe(enose_topic,1,&GSLAlgorithm::gasCallback, this);
-    wind_sub_ = nh->subscribe(anemometer_topic,1,&GSLAlgorithm::windCallback, this);
-    map_sub_ = nh->subscribe(map_topic, 1, &GSLAlgorithm::mapCallback, this);
     localization_sub_ = nh_->subscribe(robot_location_topic,100,&GSLAlgorithm::localizationCallback,this);
 
     //======================= Services ========================
     mb_client = nh_->serviceClient<nav_msgs::GetPlan>("/move_base/GlobalPlanner/make_plan");
-    ROS_INFO("[GSL NODE] INITIALIZATON COMPLETED--> WAITING_FOR_MAP");
+    ROS_INFO("INITIALIZATON COMPLETED--> WAITING_FOR_MAP");
     inMotion = false;
     inExecution = false;
 }
@@ -55,16 +45,13 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
 GSLAlgorithm::~GSLAlgorithm(){}
 
 
-//=========================================================================================
-//                                      Callback
-//=========================================================================================
+//=================================================================================
+//                                 Callback
+//=================================================================================
 
 void GSLAlgorithm::localizationCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &msg) {
-    //keep the most recent robot pose
-    current_robot_pose = *msg;
-
-    //Keep all poses for later distance estimation
-    robot_poses_vector.push_back(current_robot_pose);
+    current_robot_pose = *msg;  //keep the most recent robot pose
+    robot_poses_vector.push_back(current_robot_pose); //Keep all poses
 }
 
 
@@ -84,9 +71,9 @@ void GSLAlgorithm::goalActiveCallback(){}
 void GSLAlgorithm::goalFeedbackCallback(const move_base_msgs::MoveBaseFeedbackConstPtr &feedback){}
 
 
-//=========================================================================================
-//                                      AUX
-//=========================================================================================
+//===============================================================================
+//                                   AUX
+//===============================================================================
 
 bool GSLAlgorithm::get_inMotion() {
     return inMotion;
@@ -115,7 +102,7 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
     //2. Check that goal falls inside the map
     if (goal->target_pose.pose.position.x < map_min_x || goal->target_pose.pose.position.x > map_max_x ||
             goal->target_pose.pose.position.y < map_min_y || goal->target_pose.pose.position.y > map_max_y) {
-        if (verbose) ROS_INFO("[DEBUG] Goal is out of map dimensions");
+        ROS_INFO("[DEBUG] Goal is out of map dimensions");
         return false;
     }
 
@@ -135,7 +122,7 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
         return true;
     }
     else {
-        if (verbose) ROS_INFO("[DEBUG] Unable to reach  [%.2f, %.2f] with MoveBase", goal->target_pose.pose.position.x, goal->target_pose.pose.position.y);
+        ROS_ERROR("Unable to reach  [%.2f, %.2f] with MoveBase", goal->target_pose.pose.position.x, goal->target_pose.pose.position.y);
         return false;
     }
 }
@@ -146,20 +133,19 @@ int GSLAlgorithm::checkSourceFound() {
         //Check if timeout
         ros::Duration time_spent = ros::Time::now() - start_time;
         if (time_spent.toSec() > max_search_time) {
-            ROS_INFO("[PlumeTracking] - FAILURE-> Time spent (%.3f s) > max_search_time = %.3f", time_spent.toSec(), max_search_time);
+            ROS_INFO("FAILURE-> Time spent (%.3f s) > max_search_time = %.3f", time_spent.toSec(), max_search_time);
             return 0;
         }
 
-        //2. Distance from robot to source
+        //Check the distance from robot to source
         double Ax = current_robot_pose.pose.pose.position.x - source_pose_x;
         double Ay = current_robot_pose.pose.pose.position.y - source_pose_y;
-        double dist = sqrt( pow(Ax,2) + pow(Ay,2) );
-
+        double dist = sqrt(pow(Ax,2) + pow(Ay,2));  
         if (dist < distance_found) {
-            ROS_INFO("[PlumeTracking] - SUCCESS -> Time spent (%.3f s)", time_spent.toSec());
+            ROS_INFO("SUCCESS -> Time spent (%.3f s)", time_spent.toSec());
             return 1;
         }
     }
-    //In other case, we are still searching (keep going)
+    //In other case, keep searching
     return -1;
 }

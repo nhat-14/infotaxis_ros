@@ -37,9 +37,9 @@ class InfotaxisGSL:public GSLAlgorithm {
         void setGoal();
 
     protected:
-        void gasCallback(const olfaction_msgs::gas_sensorPtr& msg) override;
-        void windCallback(const olfaction_msgs::anemometerPtr& msg) override;
-        void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) override;
+        void gasCallback(const olfaction_msgs::gas_sensorPtr& msg);
+        void windCallback(const olfaction_msgs::anemometerPtr& msg);
+        void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
         void goalDoneCallback(const actionlib::SimpleClientGoalState &state, const move_base_msgs::MoveBaseResultConstPtr &result) override;
          
         Infotaxis_state previous_state, current_state;
