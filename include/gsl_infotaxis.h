@@ -10,7 +10,7 @@
 #include <gmrf_wind_mapping/WindEstimation.h>
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
-enum class Infotaxis_state {WAITING_FOR_MAP, EXPLORATION, STOP_AND_MEASURE, MOVING};
+enum class Infotaxis_state {WAITING_FOR_MAP, STOP_AND_MEASURE, MOVING};
 
 class Cell {
     public:
@@ -61,7 +61,7 @@ class InfotaxisGSL:public GSLAlgorithm {
         std::vector<float> entropy_gain_his;
         std::vector<float> entropy_gain_rate;
 
-        double average_concentration, avg_wind_dir, avg_wind_spd;
+        double avg_concentration, avg_wind_dir, avg_wind_spd;
         float get_avg_wind_dir(std::vector<float> const &v);
 
         //Estimations
@@ -90,9 +90,7 @@ class InfotaxisGSL:public GSLAlgorithm {
         void cancel_navigation(); 
         
         Eigen::Vector2d previous_robot_pose;
-
         std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int>> > openMoveSet;
-        std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int>> > closedMoveSet;
         std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int>> > visitedSet;
         
         void updateSets();

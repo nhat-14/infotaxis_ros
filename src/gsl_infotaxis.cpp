@@ -48,7 +48,7 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
 InfotaxisGSL::~InfotaxisGSL() {}
 
 //==================================== CALLBACKS =========================================
-// Input the occupancy map first (once) before doing CPT
+// Input the occupancy map once before doing CPT
 // ROS convention is to consider cell [0,0] as the lower-left corner 
 // see http://docs.ros.org/api/nav_msgs/html/msg/MapMetaData.html
 void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
@@ -161,63 +161,44 @@ void InfotaxisGSL::goalDoneCallback(const actionlib::SimpleClientGoalState &stat
 //Wind direction is reported as DownWind in the map frame_id
 //Being positive to the right, negative to the left, range [-pi,pi]
 void InfotaxisGSL::getGasWindObservations() {
-    if( (ros::Time::now() - time_stopped).toSec() >= stop_and_measure_time ) {
-        // average_concentration  = get_average_vector(gas_vector);
-        average_concentration  = *max_element(gas_vector.begin(), gas_vector.end());     
+    if((ros::Time::now() - time_stopped).toSec() >= stop_and_measure_time ) {
+        // avg_concentration  = get_average_vector(gas_vector);
+        avg_concentration  = *max_element(gas_vector.begin(), gas_vector.end());     
         avg_wind_dir = get_avg_wind_dir(wind_dir_vector);
-        avg_wind_spd     = get_average_vector(wind_spd_vector);
+        avg_wind_spd = get_average_vector(wind_spd_vector);
 
         gas_vector.clear();
         wind_spd_vector.clear();
         previous_robot_pose=Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); 
         previous_state = current_state;
 
-        //Check thresholds and set new search-state
-        ROS_ERROR("avg_gas=%.2f | avg_wind_speed=%.2f | avg_wind_dir=%.2f", average_concentration, avg_wind_spd, avg_wind_dir);
-        if (average_concentration > th_gas_present && avg_wind_spd > th_wind_present) {
+        ROS_ERROR("avg_gas=%.2f | avg_wind_spd=%.2f | avg_wind_dir=%.2f", avg_concentration, avg_wind_spd, avg_wind_dir);
+        if (avg_concentration > th_gas_present && avg_wind_spd > th_wind_present) {
             //Gas & wind
             gasHit = true;
             // previous_robot_pose = Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); //register where you were before moving
-            estimateProbabilities(cells, true, avg_wind_dir, currentPosIndex);
+            estimateProbabilities(cells, gasHit, avg_wind_dir, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
             ROS_WARN("GAS HIT!!!   New state --> MOVING");
         }
-
-        else if (average_concentration > th_gas_present) {
+        else if (avg_concentration > th_gas_present) {
             //Only gas
             gasHit=true;
             // previous_robot_pose=Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); 
-            current_state = Infotaxis_state::STOP_AND_MEASURE;
-            ROS_WARN("GAS, BUT NO WIND   STOP_AND_MEASURE");
-        }
-
-        else if (avg_wind_spd > th_wind_present) {
-            //Only Wind
-            gasHit=false;
-            estimateProbabilities(cells, false, avg_wind_dir, currentPosIndex);
+            previous_state=current_state;
             current_state = Infotaxis_state::MOVING;
-            ROS_WARN("NO GAS HIT   New state --> MOVING");
+            ROS_WARN("GAS, BUT NO WIND  New state --> MOVING");
         }
         else {
             //Nothing
             gasHit=false;
-            estimateProbabilities(cells, false, avg_wind_dir, currentPosIndex);
+            estimateProbabilities(cells, gasHit, avg_wind_dir, currentPosIndex);
+            previous_state=current_state;
             current_state = Infotaxis_state::MOVING;
             ROS_WARN("NOTHING!!!! New state --> MOVING");
         }
         hit_notify();
     }
-}
-
-float InfotaxisGSL::get_avg_wind_dir(std::vector<float> const &v) {
-    //Average of wind direction, avoiding the problems of +/- pi angles.
-    float x=0.0, y=0.0;
-    for(std::vector<float>::const_iterator i=v.begin(); i!=v.end(); ++i) {
-        x += cos(*i);
-        y += sin(*i);
-    }
-    float average_angle = atan2(y, x);   
-    return average_angle;
 }
 
 void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, bool hit, double wind_direction, Eigen::Vector2i robot_pos) {
@@ -308,6 +289,241 @@ void InfotaxisGSL::propagateProbabilities(std::vector<std::vector<Cell> >& map,
 }
 
 
+//=================================== NAVIGATION =============================================
+void InfotaxisGSL::setGoal() {
+    int i,j;
+    showWeights();
+    updateSets();
+    std::vector<WindVector> wind = estimateWind();
+    double ent    = -100;
+    double entAux = 0;
+
+    if (planning_mode == 0) {
+        if(!openMoveSet.empty()) {
+            for (auto &p:wind) {
+                int r=p.i, c=p.j;
+                entAux = entropy(r,c, Eigen::Vector2d(p.speed,p.angle));
+                if(entAux > ent){
+                    ent = entAux;
+                    i=r; j=c;
+                }
+            }
+        }else {
+            ROS_ERROR("Set of open nodes is empty!!!!");
+            closedMoveSet.clear();
+        }
+
+        entropy_gain_rate.push_back(ent);   
+        if (entropy_gain_rate.size() > 5) {
+            std::vector<float>::iterator it;
+            it = entropy_gain_rate.begin();
+            entropy_gain_rate.erase(it);
+        }
+        
+        entropy_gain_his.push_back(ent);
+        ROS_ERROR("Step: %li", entropy_gain_his.size());
+
+        std_msgs::Float32 max_entropy_gain;
+        max_entropy_gain.data = get_average_vector(entropy_gain_rate);    
+        entropy_reporter.publish(max_entropy_gain);
+        openMoveSet.erase(std::pair<int,int>(i,j));
+    }
+
+    else {
+        double max=0;
+        // Detect max and min weights in the map
+        for(int a=0; a<cells.size(); a++) {
+            for(int b=0; b<cells[0].size(); b++) {
+                if(cells[a][b].weight > max) {
+                    max = cells[a][b].weight;
+                    i=a; j=b;
+                }
+            }
+        }
+        openMoveSet.erase(std::pair<int,int>(i,j));
+    }
+    switch_notify();
+    planning_mode = 0;  //switching back to infotaxis
+    moveTo(i,j);
+}
+
+void InfotaxisGSL::cancel_navigation() {
+    mb_ac.cancelAllGoals();           
+    inMotion = false;
+
+    //Start a new measurement-phase while standing
+    gas_vector.clear();
+    wind_spd_vector.clear();
+    wind_dir_vector.clear();
+    time_stopped = ros::Time::now();    //Start timer for initial wind measurement
+    currentPosIndex=coordinatesToIndex(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y);
+    previous_state = current_state;
+    current_state=Infotaxis_state::STOP_AND_MEASURE;
+}
+
+// Update visited or new cell
+void InfotaxisGSL::updateSets() {
+    int i = currentPosIndex.x(), j = currentPosIndex.y();
+    ROS_ERROR("ENTROPY_GAINNNNNNN: %f, %li", get_average_vector(entropy_gain_rate), entropy_gain_rate.size());
+
+    if (number_revisited > 0){
+        ros::Duration time_spent = ros::Time::now() - last_revisited;
+        if (time_spent.toSec() > 60.0) {
+            number_revisited = 0;
+            visitedSet.clear();
+            ROS_WARN("CLEAN!!!!!!");
+        }
+    }
+
+    if (visitedSet.find(std::pair<int,int>(i,j)) != visitedSet.end()) {
+        last_revisited = ros::Time::now();
+        
+        number_revisited += 1;
+        ROS_ERROR("number of revisited: %i", number_revisited);
+
+        if ((number_revisited > 5 && get_average_vector(entropy_gain_rate) < 0.05) || number_revisited > 10) {
+            planning_mode = 1;
+            number_revisited = 0;
+            visitedSet.clear();
+            ROS_WARN("SWITCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!");
+        }
+    }
+    visitedSet.insert(std::pair<int,int>(i,j));
+
+    // check wether pos is near the boundary
+    int oI = std::max(0, i-1);
+    int fI = std::min((int) cells.size()-1, i+1);
+    int oJ = std::max(0, j-1);
+    int fJ = std::min((int) cells[0].size()-1, j+1);
+
+    openMoveSet.clear();
+
+    for(int r=oI; r<=fI; r++){
+        for(int c=oJ; c<=fJ; c++){
+            if(r==i && c==j){
+                continue;
+            }
+            std::pair<int,int> p(r,c);
+            if(cells[r][c].free && cells[r][c].distance == 1.0) {
+                openMoveSet.insert(p);
+            }
+        }
+    }
+}
+
+double InfotaxisGSL::entropy(int i, int j, Eigen::Vector2d wind) { 
+    auto cells2 = cells; //temp copy of the matrix of cells that we can modify to simulate the effect of a measurement
+    double entH = 0;
+    if(wind.x() >= th_wind_present) {
+        estimateProbabilities(cells2, true, wind.y(), Eigen::Vector2i(i,j));
+        for(int r=0; r<cells2.size(); r++){
+            for(int c=0; c<cells2[0].size(); c++){
+                double aux = cells2[r][c].weight*log(cells2[r][c].weight/cells[r][c].weight)+
+                        (1-cells2[r][c].weight)*log((1-cells2[r][c].weight)/(1-cells[r][c].weight));
+                entH += isnan(aux)?0:aux;
+            }
+        }
+    }
+
+    cells2 = cells;
+    double entM = 0;
+    estimateProbabilities(cells2, false, wind.y(), Eigen::Vector2i(i,j));
+    for(int r=0; r<cells2.size(); r++){
+        for(int c=0; c<cells2[0].size();c++){
+            double aux = cells2[r][c].weight*log(cells2[r][c].weight/cells[r][c].weight)+
+                        (1-cells2[r][c].weight)*log((1-cells2[r][c].weight)/(1-cells[r][c].weight));
+            entM+=isnan(aux)?0:aux;
+        }
+    }
+    return cells[i][j].weight*entH + (1-cells[i][j].weight)*entM;
+}
+
+void InfotaxisGSL::moveTo(int i, int j) {
+    move_base_msgs::MoveBaseGoal goal;
+    goal.target_pose.header.frame_id = "map";
+    goal.target_pose.header.stamp = ros::Time::now();
+
+    Eigen::Vector2d pos = indexToCoordinates(i,j);
+    Eigen::Vector2d coordR = indexToCoordinates(currentPosIndex.x(),currentPosIndex.y());
+
+    double move_angle= (atan2(pos.y()-coordR.y(),pos.x()-coordR.x()));
+    goal.target_pose.pose.position.x = coordR.x();
+    goal.target_pose.pose.position.y = coordR.y();
+    goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
+
+    ROS_INFO("MOVING TO %f,%f",pos.x(),pos.y());
+    
+    mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
+    
+    ros::Rate r(0.6); // 10 hz
+    r.sleep();
+    goal.target_pose.pose.position.x = pos.x();
+    goal.target_pose.pose.position.y = pos.y();
+    goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
+    mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
+
+    inMotion=true;
+}
+
+
+//========================= AUXILIARY FUNCTION ==============================
+
+Eigen::Vector2i InfotaxisGSL::coordinatesToIndex(double x, double y){
+    return Eigen::Vector2i((y-map_.info.origin.position.y)/(scale*map_.info.resolution),
+                        (x-map_.info.origin.position.x)/(scale*map_.info.resolution));
+}
+
+Eigen::Vector2d InfotaxisGSL::indexToCoordinates(double i, double j){
+    return Eigen::Vector2d(map_.info.origin.position.x+(j+0.5)*scale*map_.info.resolution,
+                        map_.info.origin.position.y+(i+0.5)*scale*map_.info.resolution);
+}
+
+double InfotaxisGSL::gaussian(double distance, double sigma){
+    return exp(-0.5*(pow(distance,2)/pow(sigma,2))            )
+        /(sigma*sqrt(2*M_PI));
+}
+
+Infotaxis_state InfotaxisGSL::getState(){
+    return current_state;
+}
+
+float InfotaxisGSL::get_avg_wind_dir(std::vector<float> const &v) {
+    //Average of wind direction, avoiding the problems of +/- pi angles.
+    float x=0.0, y=0.0;
+    for(std::vector<float>::const_iterator i=v.begin(); i!=v.end(); ++i) {
+        x += cos(*i);
+        y += sin(*i);
+    }
+    float average_angle = atan2(y, x);   
+    return average_angle;
+}
+
+std::vector<WindVector> InfotaxisGSL::estimateWind(){
+    //ask the gmrf_wind service for the estimated wind vector in cell i,j
+    gmrf_wind_mapping::WindEstimation srv;
+
+    std::vector<std::pair<int,int> > indices;
+    for(auto& p: openMoveSet){
+        Eigen::Vector2d coords = indexToCoordinates(p.first,p.second);
+        srv.request.x.push_back(coords.x());
+        srv.request.y.push_back(coords.y());
+        indices.push_back(p);
+    }
+
+    std::vector<WindVector> result(openMoveSet.size());
+    if(clientW.call(srv)){
+        for(int ind=0; ind<openMoveSet.size(); ind++){
+            result[ind].i     = indices[ind].first;
+            result[ind].j     = indices[ind].second;
+            result[ind].speed = srv.response.u[ind];
+            result[ind].angle = angles::normalize_angle(srv.response.v[ind]+M_PI);
+        }
+    }else{
+        ROS_WARN("CANNOT READ ESTIMATED WIND VECTORS");
+    }
+    return result;
+}
+
 void InfotaxisGSL::calculateWeight(std::vector<std::vector<Cell> >& map, int i, int j, std::pair<int,int> p, 
     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& openPropagationSet,
     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& closedPropagationSet,
@@ -347,233 +563,6 @@ void InfotaxisGSL::normalizeWeights(std::vector<std::vector<Cell> >& map) {
                 map[i][j].weight=map[i][j].weight/s;
         }
     }
-}
-
-
-//=================================== NAVIGATION =============================================
-
-void InfotaxisGSL::cancel_navigation() {
-    mb_ac.cancelAllGoals();           
-    inMotion = false;
-
-    //Start a new measurement-phase while standing
-    gas_vector.clear();
-    wind_spd_vector.clear();
-    wind_dir_vector.clear();
-    time_stopped = ros::Time::now();    //Start timer for initial wind measurement
-    currentPosIndex=coordinatesToIndex(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y);
-    previous_state = current_state;
-    current_state=Infotaxis_state::STOP_AND_MEASURE;
-}
-
-// Update visited or new cell
-void InfotaxisGSL::updateSets() {
-    int i = currentPosIndex.x(), j = currentPosIndex.y();
-    // closedMoveSet.insert(std::pair<int,int>(i,j));
-    ROS_ERROR("ENTROPY_GAINNNNNNN: %f, %li", get_average_vector(entropy_gain_rate), entropy_gain_rate.size());
-
-    if (number_revisited > 0){
-        ros::Duration time_spent = ros::Time::now() - last_revisited;
-        if (time_spent.toSec() > 60.0) {
-            number_revisited = 0;
-            visitedSet.clear();
-            ROS_WARN("CLEANNNNNNNNNNNNNNNNNNNNNNN!!!!!!");
-        }
-    }
-
-    if (visitedSet.find(std::pair<int,int>(i,j)) != visitedSet.end()) {
-        last_revisited = ros::Time::now();
-        
-        number_revisited += 1;
-        ROS_ERROR("number of revisited: %i", number_revisited);
-
-        if ((number_revisited > 5 && get_average_vector(entropy_gain_rate) < 0.05) || number_revisited > 10) {
-            planning_mode = 1;
-            number_revisited = 0;
-            visitedSet.clear();
-            ROS_WARN("SWITCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!");
-        }
-    }
-    visitedSet.insert(std::pair<int,int>(i,j));
-
-    // check wether pos is near the boundary
-    int oI = std::max(0, i-1);
-    int fI = std::min((int) cells.size()-1, i+1);
-    int oJ = std::max(0, j-1);
-    int fJ = std::min((int) cells[0].size()-1, j+1);
-
-    openMoveSet.clear();
-
-    for(int r=oI; r<=fI; r++){
-        for(int c=oJ; c<=fJ; c++){
-            std::pair<int,int> p(r,c);
-            if(closedMoveSet.find(p) == closedMoveSet.end() && cells[r][c].free && cells[r][c].distance == 1.0) {
-                openMoveSet.insert(p);
-            }
-        }
-    }
-}
-
-void InfotaxisGSL::setGoal() {
-    int i,j;
-    showWeights();
-    updateSets();
-    std::vector<WindVector> wind = estimateWind();
-    double ent    = -100;
-    double entAux = 0;
-
-    if (planning_mode == 0) {
-        if(!openMoveSet.empty()) {
-            for (auto &p:wind) {
-                int r=p.i; int c=p.j;
-                entAux = entropy(r,c, Eigen::Vector2d(p.speed,p.angle));
-                if(entAux > ent){
-                    ent = entAux;
-                    i=r; j=c;
-                }
-            }
-        }else {
-            ROS_ERROR("Set of open nodes is empty! Are you certain the source is reachable?");
-            closedMoveSet.clear();
-        }
-
-        // entropy_gain_rate.push_back(ent - entropy_gain_his.back());   
-        entropy_gain_rate.push_back(ent);   
-        if (entropy_gain_rate.size() > 5) {
-            std::vector<float>::iterator it;
-            it = entropy_gain_rate.begin();
-            entropy_gain_rate.erase(it);
-        }
-        
-        entropy_gain_his.push_back(ent);
-        ROS_ERROR("Step: %li", entropy_gain_his.size());
-
-        std_msgs::Float32 max_entropy_gain;
-        max_entropy_gain.data = get_average_vector(entropy_gain_rate);    
-        entropy_reporter.publish(max_entropy_gain);
-        openMoveSet.erase(std::pair<int,int>(i,j));
-    }
-
-    else {
-        double max=0;
-        // Detect max and min weights in the map
-        for(int a=0; a<cells.size(); a++) {
-            for(int b=0; b<cells[0].size(); b++) {
-                if(cells[a][b].weight > max) {
-                    max = cells[a][b].weight;
-                    i=a; j=b;
-                }
-            }
-        }
-        planning_mode = 0;
-        openMoveSet.erase(std::pair<int,int>(i,j));
-    }
-    switch_notify();
-    moveTo(i,j);
-}
-
-
-double InfotaxisGSL::entropy(int i, int j, Eigen::Vector2d wind) { 
-    auto cells2 = cells; //temp copy of the matrix of cells that we can modify to simulate the effect of a measurement
-    double entH = 0;
-    if(wind.x() >= th_wind_present) {
-        estimateProbabilities(cells2, true, wind.y(), Eigen::Vector2i(i,j));
-        for(int r=0; r<cells2.size(); r++){
-            for(int c=0; c<cells2[0].size(); c++){
-                double aux = cells2[r][c].weight*log(cells2[r][c].weight/cells[r][c].weight)+
-                        (1-cells2[r][c].weight)*log((1-cells2[r][c].weight)/(1-cells[r][c].weight));
-                entH += isnan(aux)?0:aux;
-            }
-        }
-    }
-
-    cells2 = cells;
-    double entM = 0;
-    estimateProbabilities(cells2, false, wind.y(), Eigen::Vector2i(i,j));
-    for(int r=0; r<cells2.size(); r++){
-        for(int c=0; c<cells2[0].size();c++){
-            double aux = cells2[r][c].weight*log(cells2[r][c].weight/cells[r][c].weight)+
-                        (1-cells2[r][c].weight)*log((1-cells2[r][c].weight)/(1-cells[r][c].weight));
-            entM+=isnan(aux)?0:aux;
-        }
-    }
-    return cells[i][j].weight*entH + (1-cells[i][j].weight)*entM;
-}
-
-
-void InfotaxisGSL::moveTo(int i, int j) {
-    move_base_msgs::MoveBaseGoal goal;
-    goal.target_pose.header.frame_id = "map";
-    goal.target_pose.header.stamp = ros::Time::now();
-
-    Eigen::Vector2d pos = indexToCoordinates(i,j);
-    Eigen::Vector2d coordR = indexToCoordinates(currentPosIndex.x(),currentPosIndex.y());
-
-    double move_angle= (atan2(pos.y()-coordR.y(),pos.x()-coordR.x()));
-    goal.target_pose.pose.position.x = coordR.x();
-    goal.target_pose.pose.position.y = coordR.y();
-    goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
-
-    ROS_INFO("MOVING TO %f,%f",pos.x(),pos.y());
-    
-    mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
-    
-    ros::Rate r(0.6); // 10 hz
-    r.sleep();
-    goal.target_pose.pose.position.x = pos.x();
-    goal.target_pose.pose.position.y = pos.y();
-    goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
-    mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
-
-    inMotion=true;
-}
-
-std::vector<WindVector> InfotaxisGSL::estimateWind(){
-    //ask the gmrf_wind service for the estimated wind vector in cell i,j
-    gmrf_wind_mapping::WindEstimation srv;
-
-    std::vector<std::pair<int,int> > indices;
-    for(auto& p: openMoveSet){
-        Eigen::Vector2d coords = indexToCoordinates(p.first,p.second);
-        srv.request.x.push_back(coords.x());
-        srv.request.y.push_back(coords.y());
-        indices.push_back(p);
-    }
-
-    std::vector<WindVector> result(openMoveSet.size());
-    if(clientW.call(srv)){
-        for(int ind=0; ind<openMoveSet.size(); ind++){
-            result[ind].i     = indices[ind].first;
-            result[ind].j     = indices[ind].second;
-            result[ind].speed = srv.response.u[ind];
-            result[ind].angle = angles::normalize_angle(srv.response.v[ind]+M_PI);
-        }
-    }else{
-        ROS_WARN("CANNOT READ ESTIMATED WIND VECTORS");
-    }
-    return result;
-}
-
-
-//========================= AUXILIARY FUNCTION ==============================
-
-Eigen::Vector2i InfotaxisGSL::coordinatesToIndex(double x, double y){
-    return Eigen::Vector2i((y-map_.info.origin.position.y)/(scale*map_.info.resolution),
-                        (x-map_.info.origin.position.x)/(scale*map_.info.resolution));
-}
-
-Eigen::Vector2d InfotaxisGSL::indexToCoordinates(double i, double j){
-    return Eigen::Vector2d(map_.info.origin.position.x+(j+0.5)*scale*map_.info.resolution,
-                        map_.info.origin.position.y+(i+0.5)*scale*map_.info.resolution);
-}
-
-double InfotaxisGSL::gaussian(double distance, double sigma){
-    return exp(-0.5*(pow(distance,2)/pow(sigma,2))            )
-        /(sigma*sqrt(2*M_PI));
-}
-
-Infotaxis_state InfotaxisGSL::getState(){
-    return current_state;
 }
 
 //============================ VISUALIZATION ===============================
