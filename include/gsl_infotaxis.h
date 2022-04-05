@@ -56,13 +56,13 @@ class InfotaxisGSL:public GSLAlgorithm {
         double th_wind_present;
 
         std::vector<float> gas_vector;
-        std::vector<float> stop_and_measure_windS_v;
+        std::vector<float> wind_spd_vector;
         std::vector<float> wind_dir_vector;
         std::vector<float> entropy_gain_his;
         std::vector<float> entropy_gain_rate;
 
-        double average_concentration, average_wind_direction, average_wind_speed;
-        float get_average_wind_direction(std::vector<float> const &v);
+        double average_concentration, avg_wind_dir, avg_wind_spd;
+        float get_avg_wind_dir(std::vector<float> const &v);
 
         //Estimations
         double stdev_hit;

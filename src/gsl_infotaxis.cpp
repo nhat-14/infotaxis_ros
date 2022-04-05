@@ -142,7 +142,7 @@ void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
 
     //Only if we are in the Stop_and_Measure
     if (this->current_state == Infotaxis_state::STOP_AND_MEASURE) {
-        stop_and_measure_windS_v.push_back(msg->wind_speed);
+        wind_spd_vector.push_back(msg->wind_speed);
         wind_dir_vector.push_back(tf::getYaw(map_downWind_pose.pose.orientation));
     }
 }
@@ -164,21 +164,21 @@ void InfotaxisGSL::getGasWindObservations() {
     if( (ros::Time::now() - time_stopped).toSec() >= stop_and_measure_time ) {
         // average_concentration  = get_average_vector(gas_vector);
         average_concentration  = *max_element(gas_vector.begin(), gas_vector.end());     
-        average_wind_direction = get_average_wind_direction(wind_dir_vector);
-        average_wind_speed     = get_average_vector(stop_and_measure_windS_v);
+        avg_wind_dir = get_avg_wind_dir(wind_dir_vector);
+        avg_wind_spd     = get_average_vector(wind_spd_vector);
 
         gas_vector.clear();
-        stop_and_measure_windS_v.clear();
+        wind_spd_vector.clear();
         previous_robot_pose=Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); 
         previous_state = current_state;
 
         //Check thresholds and set new search-state
-        ROS_ERROR("avg_gas=%.3f    avg_wind_speed=%.3f     avg_wind_dir=%.3f", average_concentration, average_wind_speed, average_wind_direction);
-        if (average_concentration > th_gas_present && average_wind_speed > th_wind_present) {
+        ROS_ERROR("avg_gas=%.2f | avg_wind_speed=%.2f | avg_wind_dir=%.2f", average_concentration, avg_wind_spd, avg_wind_dir);
+        if (average_concentration > th_gas_present && avg_wind_spd > th_wind_present) {
             //Gas & wind
             gasHit = true;
             // previous_robot_pose = Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); //register where you were before moving
-            estimateProbabilities(cells, true, average_wind_direction, currentPosIndex);
+            estimateProbabilities(cells, true, avg_wind_dir, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
             ROS_WARN("GAS HIT!!!   New state --> MOVING");
         }
@@ -191,17 +191,17 @@ void InfotaxisGSL::getGasWindObservations() {
             ROS_WARN("GAS, BUT NO WIND   STOP_AND_MEASURE");
         }
 
-        else if (average_wind_speed > th_wind_present) {
+        else if (avg_wind_spd > th_wind_present) {
             //Only Wind
             gasHit=false;
-            estimateProbabilities(cells, false, average_wind_direction, currentPosIndex);
+            estimateProbabilities(cells, false, avg_wind_dir, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
             ROS_WARN("NO GAS HIT   New state --> MOVING");
         }
         else {
             //Nothing
             gasHit=false;
-            estimateProbabilities(cells, false, average_wind_direction, currentPosIndex);
+            estimateProbabilities(cells, false, avg_wind_dir, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
             ROS_WARN("NOTHING!!!! New state --> MOVING");
         }
@@ -209,7 +209,7 @@ void InfotaxisGSL::getGasWindObservations() {
     }
 }
 
-float InfotaxisGSL::get_average_wind_direction(std::vector<float> const &v) {
+float InfotaxisGSL::get_avg_wind_dir(std::vector<float> const &v) {
     //Average of wind direction, avoiding the problems of +/- pi angles.
     float x=0.0, y=0.0;
     for(std::vector<float>::const_iterator i=v.begin(); i!=v.end(); ++i) {
@@ -358,7 +358,7 @@ void InfotaxisGSL::cancel_navigation() {
 
     //Start a new measurement-phase while standing
     gas_vector.clear();
-    stop_and_measure_windS_v.clear();
+    wind_spd_vector.clear();
     wind_dir_vector.clear();
     time_stopped = ros::Time::now();    //Start timer for initial wind measurement
     currentPosIndex=coordinatesToIndex(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y);
