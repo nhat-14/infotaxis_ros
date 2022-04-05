@@ -47,8 +47,7 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
 
 InfotaxisGSL::~InfotaxisGSL() {}
 
-//========================================== CALLBACKS =================================================
-
+//==================================== CALLBACKS =========================================
 // Input the occupancy map first (once) before doing CPT
 // ROS convention is to consider cell [0,0] as the lower-left corner 
 // see http://docs.ros.org/api/nav_msgs/html/msg/MapMetaData.html
@@ -105,7 +104,6 @@ void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
         }
         cellsI++;
     }
-
     normalizeWeights(cells);
     showWeights();
     cancel_navigation();
@@ -121,7 +119,7 @@ void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
 void InfotaxisGSL::gasCallback(const olfaction_msgs::gas_sensorPtr& msg) {
     //Only save gas data if we are in the Stop_and_Measure
     if (current_state == Infotaxis_state::STOP_AND_MEASURE) {
-        stop_and_measure_gas_v.push_back(msg->raw);
+        gas_vector.push_back(msg->raw);
     }
 }
 
@@ -135,7 +133,7 @@ void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
         anemometer_downWind_pose.pose.position.y = 0.0;
         anemometer_downWind_pose.pose.position.z = 0.0;
         anemometer_downWind_pose.pose.orientation = tf::createQuaternionMsgFromYaw(downWind_direction);
-        tf_.transformPose("map", anemometer_downWind_pose, map_downWind_pose);                                        //doan nay meo hieu sao phai cos 2 objrect
+        tf_.transformPose("map", anemometer_downWind_pose, map_downWind_pose);  //doan nay meo hieu sao phai cos 2 objrect
     }
     catch(tf::TransformException &ex) {
         ROS_ERROR("InfotaxisPT - Error: %s", ex.what());
@@ -145,7 +143,7 @@ void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
     //Only if we are in the Stop_and_Measure
     if (this->current_state == Infotaxis_state::STOP_AND_MEASURE) {
         stop_and_measure_windS_v.push_back(msg->wind_speed);
-        stop_and_measure_windD_v.push_back(tf::getYaw(map_downWind_pose.pose.orientation));
+        wind_dir_vector.push_back(tf::getYaw(map_downWind_pose.pose.orientation));
     }
 }
 
@@ -164,12 +162,12 @@ void InfotaxisGSL::goalDoneCallback(const actionlib::SimpleClientGoalState &stat
 //Being positive to the right, negative to the left, range [-pi,pi]
 void InfotaxisGSL::getGasWindObservations() {
     if( (ros::Time::now() - time_stopped).toSec() >= stop_and_measure_time ) {
-        // average_concentration  = get_average_vector(stop_and_measure_gas_v);
-        average_concentration  = *max_element(stop_and_measure_gas_v.begin(), stop_and_measure_gas_v.end());     
-        average_wind_direction = get_average_wind_direction(stop_and_measure_windD_v);
+        // average_concentration  = get_average_vector(gas_vector);
+        average_concentration  = *max_element(gas_vector.begin(), gas_vector.end());     
+        average_wind_direction = get_average_wind_direction(wind_dir_vector);
         average_wind_speed     = get_average_vector(stop_and_measure_windS_v);
 
-        stop_and_measure_gas_v.clear();
+        gas_vector.clear();
         stop_and_measure_windS_v.clear();
         previous_robot_pose=Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); 
         previous_state = current_state;
@@ -205,7 +203,7 @@ void InfotaxisGSL::getGasWindObservations() {
             gasHit=false;
             estimateProbabilities(cells, false, average_wind_direction, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
-            ROS_WARN("[INFOTAXIS] NOTHING!!!! New state --> MOVING");
+            ROS_WARN("NOTHING!!!! New state --> MOVING");
         }
         hit_notify();
     }
@@ -213,8 +211,8 @@ void InfotaxisGSL::getGasWindObservations() {
 
 float InfotaxisGSL::get_average_wind_direction(std::vector<float> const &v) {
     //Average of wind direction, avoiding the problems of +/- pi angles.
-    float x =0.0, y = 0.0;
-    for(std::vector<float>::const_iterator i = v.begin(); i != v.end(); ++i) {
+    float x=0.0, y=0.0;
+    for(std::vector<float>::const_iterator i=v.begin(); i!=v.end(); ++i) {
         x += cos(*i);
         y += sin(*i);
     }
@@ -359,9 +357,9 @@ void InfotaxisGSL::cancel_navigation() {
     inMotion = false;
 
     //Start a new measurement-phase while standing
-    stop_and_measure_gas_v.clear();
+    gas_vector.clear();
     stop_and_measure_windS_v.clear();
-    stop_and_measure_windD_v.clear();
+    wind_dir_vector.clear();
     time_stopped = ros::Time::now();    //Start timer for initial wind measurement
     currentPosIndex=coordinatesToIndex(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y);
     previous_state = current_state;
@@ -556,13 +554,32 @@ std::vector<WindVector> InfotaxisGSL::estimateWind(){
     return result;
 }
 
-//----------------
-    //AUX
-//----------------
 
-void InfotaxisGSL::showWeights(){
-    visualization_msgs::Marker points=emptyMarker();
+//========================= AUXILIARY FUNCTION ==============================
 
+Eigen::Vector2i InfotaxisGSL::coordinatesToIndex(double x, double y){
+    return Eigen::Vector2i((y-map_.info.origin.position.y)/(scale*map_.info.resolution),
+                        (x-map_.info.origin.position.x)/(scale*map_.info.resolution));
+}
+
+Eigen::Vector2d InfotaxisGSL::indexToCoordinates(double i, double j){
+    return Eigen::Vector2d(map_.info.origin.position.x+(j+0.5)*scale*map_.info.resolution,
+                        map_.info.origin.position.y+(i+0.5)*scale*map_.info.resolution);
+}
+
+double InfotaxisGSL::gaussian(double distance, double sigma){
+    return exp(-0.5*(pow(distance,2)/pow(sigma,2))            )
+        /(sigma*sqrt(2*M_PI));
+}
+
+Infotaxis_state InfotaxisGSL::getState(){
+    return current_state;
+}
+
+//============================ VISUALIZATION ===============================
+
+void InfotaxisGSL::showWeights() {
+    visualization_msgs::Marker points = emptyMarker();
     for(int a=0; a<cells.size(); a++) {
         for(int b=0; b<cells[0].size(); b++) {
             if(cells[a][b].free){
@@ -584,22 +601,7 @@ void InfotaxisGSL::showWeights(){
     probability_markers.publish(points);
 }
 
-Eigen::Vector2i InfotaxisGSL::coordinatesToIndex(double x, double y){
-    return Eigen::Vector2i((y-map_.info.origin.position.y)/(scale*map_.info.resolution),
-                            (x-map_.info.origin.position.x)/(scale*map_.info.resolution));
-}
-
-Eigen::Vector2d InfotaxisGSL::indexToCoordinates(double i, double j){
-    return Eigen::Vector2d(map_.info.origin.position.x+(j+0.5)*scale*map_.info.resolution,
-                            map_.info.origin.position.y+(i+0.5)*scale*map_.info.resolution);
-}
-
-double InfotaxisGSL::gaussian(double distance, double sigma){
-    return exp(-0.5*(pow(distance,2)/pow(sigma,2))            )
-        /(sigma*sqrt(2*M_PI));
-}
-
-visualization_msgs::Marker InfotaxisGSL::emptyMarker(){
+visualization_msgs::Marker InfotaxisGSL::emptyMarker() {
     visualization_msgs::Marker points;
     points.header.frame_id="map";
     points.header.stamp=ros::Time::now();
@@ -643,10 +645,6 @@ Eigen::Vector3d InfotaxisGSL::valueToColor(double val, double low, double high){
         b=0;
     }
     return Eigen::Vector3d(r,g,b);
-}
-
-Infotaxis_state InfotaxisGSL::getState(){
-    return current_state;
 }
 
 void InfotaxisGSL::switch_notify() {
@@ -702,5 +700,5 @@ void InfotaxisGSL::hit_notify() {
     marker.scale.x = 0.5;
     marker.scale.y = 0.5;
     marker.scale.z = 0.5;
-    hit_marker.publish( marker );
+    hit_marker.publish(marker);
 }

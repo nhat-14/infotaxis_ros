@@ -37,6 +37,9 @@ class InfotaxisGSL:public GSLAlgorithm {
         void setGoal();
 
     protected:
+        ros::Subscriber gas_sub_;                                           //! Gas readings subscriber
+        ros::Subscriber wind_sub_;                                          //! Wind readings subscriber
+        ros::Subscriber map_sub_;                                           //! Map subscriber.
         void gasCallback(const olfaction_msgs::gas_sensorPtr& msg);
         void windCallback(const olfaction_msgs::anemometerPtr& msg);
         void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
@@ -52,9 +55,9 @@ class InfotaxisGSL:public GSLAlgorithm {
         double th_gas_present;
         double th_wind_present;
 
-        std::vector<float> stop_and_measure_gas_v;
+        std::vector<float> gas_vector;
         std::vector<float> stop_and_measure_windS_v;
-        std::vector<float> stop_and_measure_windD_v;
+        std::vector<float> wind_dir_vector;
         std::vector<float> entropy_gain_his;
         std::vector<float> entropy_gain_rate;
 

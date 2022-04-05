@@ -20,8 +20,7 @@
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 
-class GSLAlgorithm
-{
+class GSLAlgorithm {
     public:
         GSLAlgorithm(ros::NodeHandle *nh);
         ~GSLAlgorithm();
@@ -48,11 +47,7 @@ class GSLAlgorithm
         geometry_msgs::PoseWithCovarianceStamped current_robot_pose;        //! Robot pose on the global frame referential
         MoveBaseClient mb_ac;                                               //! Move Base Action Server.
 
-
         //Subscriptions
-        ros::Subscriber gas_sub_;                                           //! Gas readings subscriber
-        ros::Subscriber wind_sub_;                                          //! Wind readings subscriber
-        ros::Subscriber map_sub_;                                           //! Map subscriber.
         ros::Subscriber localization_sub_;
         ros::ServiceClient mb_client;
         tf::TransformListener tf_;
@@ -69,5 +64,4 @@ class GSLAlgorithm
         bool checkGoal(move_base_msgs::MoveBaseGoal * goal);
         float get_average_vector(std::vector<float> const &v);
 };
-
 #endif
