@@ -310,7 +310,6 @@ void InfotaxisGSL::setGoal() {
             }
         }else {
             ROS_ERROR("Set of open nodes is empty!!!!");
-            closedMoveSet.clear();
         }
 
         entropy_gain_rate.push_back(ent);   
@@ -363,8 +362,9 @@ void InfotaxisGSL::cancel_navigation() {
 
 // Update visited or new cell
 void InfotaxisGSL::updateSets() {
-    int i = currentPosIndex.x(), j = currentPosIndex.y();
-    ROS_ERROR("ENTROPY_GAINNNNNNN: %f, %li", get_average_vector(entropy_gain_rate), entropy_gain_rate.size());
+    int i = currentPosIndex.x();
+    int j = currentPosIndex.y();
+    ROS_ERROR("ENTROPY_GAIN: %f", get_average_vector(entropy_gain_rate));
 
     if (number_revisited > 0){
         ros::Duration time_spent = ros::Time::now() - last_revisited;
@@ -400,9 +400,9 @@ void InfotaxisGSL::updateSets() {
 
     for(int r=oI; r<=fI; r++){
         for(int c=oJ; c<=fJ; c++){
-            if(r==i && c==j){
-                continue;
-            }
+            // if(r==i && c==j){
+            //     continue;   //Never stay in the same place
+            // }
             std::pair<int,int> p(r,c);
             if(cells[r][c].free && cells[r][c].distance == 1.0) {
                 openMoveSet.insert(p);
