@@ -125,7 +125,7 @@ void InfotaxisGSL::gasCallback(const olfaction_msgs::gas_sensorPtr& msg) {
 
 void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
     //1. Add obs to the vector of the last N wind speeds
-    float downWind_direction = angles::normalize_angle(msg->wind_direction);
+    float downWind_direction = angles::normalize_angle(msg->wind_direction); //simulation wind
     geometry_msgs::PoseStamped anemometer_downWind_pose, map_downWind_pose; //Transform from anemometer ref_system to map ref_system using TF
     try {
         anemometer_downWind_pose.header.frame_id = msg->header.frame_id;    
@@ -133,7 +133,7 @@ void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
         anemometer_downWind_pose.pose.position.y = 0.0;
         anemometer_downWind_pose.pose.position.z = 0.0;
         anemometer_downWind_pose.pose.orientation = tf::createQuaternionMsgFromYaw(downWind_direction);
-        tf_.transformPose("map", anemometer_downWind_pose, map_downWind_pose);  //doan nay meo hieu sao phai cos 2 objrect
+        tf_.transformPose("map", anemometer_downWind_pose, map_downWind_pose); 
     }
     catch(tf::TransformException &ex) {
         ROS_ERROR("InfotaxisPT - Error: %s", ex.what());
@@ -201,6 +201,7 @@ void InfotaxisGSL::getGasWindObservations() {
     }
 }
 
+//theo nhu code thi wind direction o day la down
 void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, bool hit, double wind_direction, Eigen::Vector2i robot_pos) {
     std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > openPropagationSet;
     std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > activePropagationSet;
@@ -300,15 +301,17 @@ void InfotaxisGSL::setGoal() {
 
     if (planning_mode == 0) {
         if(!openMoveSet.empty()) {
-            for (auto &p:wind) {
+            for (auto &p:wind) {    // loop
                 int r=p.i, c=p.j;
                 entAux = entropy(r,c, Eigen::Vector2d(p.speed,p.angle));
                 if(entAux > ent){
                     ent = entAux;
-                    i=r; j=c;
+                    i=r; 
+                    j=c;
                 }
             }
-        }else {
+        }
+        else {
             ROS_ERROR("Set of open nodes is empty!!!!");
         }
 
@@ -414,6 +417,8 @@ void InfotaxisGSL::updateSets() {
 double InfotaxisGSL::entropy(int i, int j, Eigen::Vector2d wind) { 
     auto cells2 = cells; //temp copy of the matrix of cells that we can modify to simulate the effect of a measurement
     double entH = 0;
+    double entM = 0;
+
     if(wind.x() >= th_wind_present) {
         estimateProbabilities(cells2, true, wind.y(), Eigen::Vector2i(i,j));
         for(int r=0; r<cells2.size(); r++){
@@ -426,13 +431,12 @@ double InfotaxisGSL::entropy(int i, int j, Eigen::Vector2d wind) {
     }
 
     cells2 = cells;
-    double entM = 0;
     estimateProbabilities(cells2, false, wind.y(), Eigen::Vector2i(i,j));
     for(int r=0; r<cells2.size(); r++){
-        for(int c=0; c<cells2[0].size();c++){
+        for(int c=0; c<cells2[0].size(); c++){
             double aux = cells2[r][c].weight*log(cells2[r][c].weight/cells[r][c].weight)+
                         (1-cells2[r][c].weight)*log((1-cells2[r][c].weight)/(1-cells[r][c].weight));
-            entM+=isnan(aux)?0:aux;
+            entM += isnan(aux)?0:aux;
         }
     }
     return cells[i][j].weight*entH + (1-cells[i][j].weight)*entM;
@@ -498,11 +502,12 @@ float InfotaxisGSL::get_avg_wind_dir(std::vector<float> const &v) {
     return average_angle;
 }
 
+//ask the gmrf_wind service to estimate the wind vector of cells in openMoveSet
 std::vector<WindVector> InfotaxisGSL::estimateWind(){
-    //ask the gmrf_wind service for the estimated wind vector in cell i,j
     gmrf_wind_mapping::WindEstimation srv;
+    std::vector<std::pair<int,int>> indices;
 
-    std::vector<std::pair<int,int> > indices;
+    // Get coordinate of each cells in openMoveSet to call in GMRF_wind service
     for(auto& p: openMoveSet){
         Eigen::Vector2d coords = indexToCoordinates(p.first,p.second);
         srv.request.x.push_back(coords.x());
@@ -510,13 +515,14 @@ std::vector<WindVector> InfotaxisGSL::estimateWind(){
         indices.push_back(p);
     }
 
+    // Call in GMRF_wind service and get result for cells in openMoveSet
     std::vector<WindVector> result(openMoveSet.size());
     if(clientW.call(srv)){
         for(int ind=0; ind<openMoveSet.size(); ind++){
             result[ind].i     = indices[ind].first;
             result[ind].j     = indices[ind].second;
             result[ind].speed = srv.response.u[ind];
-            result[ind].angle = angles::normalize_angle(srv.response.v[ind]+M_PI);
+            result[ind].angle = angles::normalize_angle(srv.response.v[ind]+M_PI);              //?????????????????????
         }
     }else{
         ROS_WARN("CANNOT READ ESTIMATED WIND VECTORS");
