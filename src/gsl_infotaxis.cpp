@@ -32,6 +32,12 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
     hit_marker          = nh->advertise<visualization_msgs::Marker>("hit_marker", 10);
     entropy_reporter    = nh->advertise<std_msgs::Float32>("entropy_reporter", 10);
     
+
+
+    test_marker          = nh->advertise<visualization_msgs::Marker>("test_marker", 10);
+
+
+
     // Init State
     gasHit           = false;
     number_revisited = 0;
@@ -125,7 +131,8 @@ void InfotaxisGSL::gasCallback(const olfaction_msgs::gas_sensorPtr& msg) {
 
 void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
     //1. Add obs to the vector of the last N wind speeds
-    float downWind_direction = angles::normalize_angle(msg->wind_direction); //simulation wind
+    float downWind_direction = angles::normalize_angle(msg->wind_direction + M_PI); //simulation wind
+
     geometry_msgs::PoseStamped anemometer_downWind_pose, map_downWind_pose; //Transform from anemometer ref_system to map ref_system using TF
     try {
         anemometer_downWind_pose.header.frame_id = msg->header.frame_id;    
@@ -219,6 +226,10 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
     Eigen::Vector2d coordR = indexToCoordinates(i,j);
     double upwind_dir      = angles::normalize_angle(wind_direction+M_PI);
     double move_dir        = atan2((previous_robot_pose.y()-coordR.y()),(previous_robot_pose.x()-coordR.x()))+M_PI;
+
+    plotplot(move_dir);
+
+
     double maxHit          = gaussian(0,stdev_hit);
     double maxMiss         = gaussian(0,stdev_miss);
 
@@ -483,8 +494,7 @@ Eigen::Vector2d InfotaxisGSL::indexToCoordinates(double i, double j){
 }
 
 double InfotaxisGSL::gaussian(double distance, double sigma){
-    return exp(-0.5*(pow(distance,2)/pow(sigma,2))            )
-        /(sigma*sqrt(2*M_PI));
+    return exp(-0.5*(pow(distance,2)/pow(sigma,2)))/(sigma*sqrt(2*M_PI));
 }
 
 Infotaxis_state InfotaxisGSL::getState(){
@@ -696,4 +706,31 @@ void InfotaxisGSL::hit_notify() {
     marker.scale.y = 0.5;
     marker.scale.z = 0.5;
     hit_marker.publish(marker);
+}
+
+
+void InfotaxisGSL::plotplot(float haha) {
+    ROS_ERROR("bjasbfjkadvbjkldanvlkjdmnv");
+
+    visualization_msgs::Marker wind_point_inv;
+    wind_point_inv.header.frame_id = "map";
+    wind_point_inv.id = 1;
+	wind_point_inv.action = visualization_msgs::Marker::ADD;
+	wind_point_inv.type = visualization_msgs::Marker::ARROW;
+    wind_point_inv.header.stamp    = ros::Time::now();
+	
+    wind_point_inv.pose.position.x = 0.0;
+	wind_point_inv.pose.position.y = 0.0;
+    wind_point_inv.pose.position.z = 0.0;
+
+    wind_point_inv.pose.orientation = tf::createQuaternionMsgFromYaw(haha);
+    wind_point_inv.scale.x = 2.5;	  //arrow leng`ht
+    wind_point_inv.scale.y = 0.1;	  //arrow width
+    wind_point_inv.scale.z = 0.1;	  //arrow height
+    wind_point_inv.color.r = 0.0;
+    wind_point_inv.color.g = 0.0;
+    wind_point_inv.color.b = 1.0;
+    wind_point_inv.color.a = 1.0;
+
+    test_marker.publish(wind_point_inv);
 }

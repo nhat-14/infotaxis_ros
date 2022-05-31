@@ -114,6 +114,15 @@ class InfotaxisGSL:public GSLAlgorithm {
         ros::Publisher hit_marker;
         void switch_notify();
         void hit_notify();
+
+
+
+
+        ros::Publisher test_marker;
+        void plotplot(float haha);
+
+
+
         Eigen::Vector2i currentPosIndex;
         
         //Auxiliary functions
