@@ -3,12 +3,12 @@
 #include "std_msgs/Float32.h"
 
 Cell::Cell(bool f, double a, double b, double c) {
-    free=f;
-    x=a;
-    y=b;
-    weight=c;
-    auxWeight=0;
-    distance=0;
+    x    = a;
+    y    = b;
+    free = f;
+    weight    = c;
+    auxWeight = 0;
+    distance  = 0;
 }
 
 InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
@@ -31,9 +31,6 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
     switch_marker       = nh->advertise<visualization_msgs::Marker>("switch_marker", 10);
     hit_marker          = nh->advertise<visualization_msgs::Marker>("hit_marker", 10);
     entropy_reporter    = nh->advertise<std_msgs::Float32>("entropy_reporter", 10);
-    
-
-
     test_marker          = nh->advertise<visualization_msgs::Marker>("test_marker", 10);
 
 
@@ -465,7 +462,6 @@ void InfotaxisGSL::moveTo(int i, int j) {
     goal.target_pose.pose.position.x = coordR.x();
     goal.target_pose.pose.position.y = coordR.y();
     goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
-
     ROS_INFO("MOVING TO %f,%f",pos.x(),pos.y());
     
     mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
@@ -475,6 +471,7 @@ void InfotaxisGSL::moveTo(int i, int j) {
     goal.target_pose.pose.position.x = pos.x();
     goal.target_pose.pose.position.y = pos.y();
     goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
+    while(!checkGoal(&goal));
     mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
 
     inMotion=true;

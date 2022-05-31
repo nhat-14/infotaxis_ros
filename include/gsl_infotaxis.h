@@ -17,15 +17,12 @@ class Cell {
         Cell(bool free, double x, double y, double weight);
         ~Cell(){};
         bool free;
-        double x, y, weight, auxWeight;
-        double distance;        
+        double x, y, weight, auxWeight, distance;        
 };
 
 struct WindVector {
-    int i;
-    int j;
-    double speed;
-    double angle;
+    int i, j;
+    double speed, angle;
 };
 
 class InfotaxisGSL:public GSLAlgorithm {

@@ -36,7 +36,7 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
     localization_sub_ = nh_->subscribe(robot_location_topic,100,&GSLAlgorithm::localizationCallback,this);
 
     //======================= Services ========================
-    mb_client = nh_->serviceClient<nav_msgs::GetPlan>("/move_base/GlobalPlanner/make_plan");
+    mb_client = nh_->serviceClient<nav_msgs::GetPlan>("/move_base/NavfnROS/make_plan");
     inMotion = false;
     inExecution = false;
 }
@@ -87,7 +87,11 @@ float GSLAlgorithm::get_average_vector(std::vector<float> const &v) {
 
 
 bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
-    ROS_INFO("[DEBUG] Checking Goal [%.2f, %.2f] in map frame", goal->target_pose.pose.position.x, goal->target_pose.pose.position.y);
+    geometry_msgs::PoseStamped target = goal->target_pose;
+    float target_x = target.pose.position.x;
+    float target_y = target.pose.position.y;
+
+    ROS_INFO("Checking Goal [%.2f, %.2f] in map frame", target_x, target_y);
 
     //1. Get dimensions of OccupancyMap
     float map_min_x = map_.info.origin.position.x;
@@ -96,29 +100,30 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
     float map_max_y = map_.info.origin.position.y + map_.info.height*map_.info.resolution;
 
     //2. Check that goal falls inside the map
-    if (goal->target_pose.pose.position.x < map_min_x || goal->target_pose.pose.position.x > map_max_x ||
-            goal->target_pose.pose.position.y < map_min_y || goal->target_pose.pose.position.y > map_max_y) {
-        ROS_INFO("[DEBUG] Goal is out of map dimensions");
+    if (target_x < map_min_x || target_x > map_max_x || target_y < map_min_y || target_y > map_max_y) {
+        ROS_ERROR("Goal is out of map dimensions!!!");
         return false;
     }
 
     //3. Use Move Base Service to declare a valid navigation goal
     nav_msgs::GetPlan mb_srv;
     geometry_msgs::PoseStamped start_point;
+
     start_point.header.frame_id = "map";
     start_point.header.stamp = ros::Time::now();
     start_point.pose = current_robot_pose.pose.pose;
+
     mb_srv.request.start = start_point;
-    mb_srv.request.tolerance=0.0;
-    mb_srv.request.start.header.frame_id = "map";
-    mb_srv.request.goal = goal->target_pose;
+    mb_srv.request.goal = target;
+    mb_srv.request.tolerance = 0.1;
     
-    //get path from robot to candidate.
+    //get path from robot to next target.
+    mb_client.call(mb_srv);
     if( mb_client.call(mb_srv) && mb_srv.response.plan.poses.size()>1) {
         return true;
     }
     else {
-        ROS_ERROR("Unable to reach [%.2f, %.2f] with MoveBase", goal->target_pose.pose.position.x, goal->target_pose.pose.position.y);
+        ROS_ERROR("Unable to reach [%.2f, %.2f] with MoveBase", target_x, target_y);
         return false;
     }
 }
