@@ -86,26 +86,24 @@ float GSLAlgorithm::get_average_vector(std::vector<float> const &v) {
 }
 
 
+/* Check if next location to move inside the map or not */
 bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
     geometry_msgs::PoseStamped target = goal->target_pose;
     float target_x = target.pose.position.x;
     float target_y = target.pose.position.y;
-
     ROS_INFO("Checking Goal [%.2f, %.2f] in map frame", target_x, target_y);
 
-    //1. Get dimensions of OccupancyMap
+    // Check that goal falls inside the map
     float map_min_x = map_.info.origin.position.x;
     float map_max_x = map_.info.origin.position.x + map_.info.width*map_.info.resolution;
     float map_min_y = map_.info.origin.position.y;
     float map_max_y = map_.info.origin.position.y + map_.info.height*map_.info.resolution;
-
-    //2. Check that goal falls inside the map
     if (target_x < map_min_x || target_x > map_max_x || target_y < map_min_y || target_y > map_max_y) {
         ROS_ERROR("Goal is out of map dimensions!!!");
         return false;
     }
 
-    //3. Use Move Base Service to declare a valid navigation goal
+    //3. Use MoveBase service to declare a valid goal and get path from robot to it
     nav_msgs::GetPlan mb_srv;
     geometry_msgs::PoseStamped start_point;
 
@@ -117,7 +115,6 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
     mb_srv.request.goal = target;
     mb_srv.request.tolerance = 0.1;
     
-    //get path from robot to next target.
     mb_client.call(mb_srv);
     if( mb_client.call(mb_srv) && mb_srv.response.plan.poses.size()>1) {
         return true;
@@ -134,7 +131,7 @@ int GSLAlgorithm::checkSourceFound() {
         //Check if timeout
         ros::Duration time_spent = ros::Time::now() - start_time;
         if (time_spent.toSec() > max_search_time) {
-            ROS_INFO("FAILURE-> Time spent (%.3f s) > max_search_time = %.3f", time_spent.toSec(), max_search_time);
+            ROS_INFO("FAILURE-> Time spent (%.3f s) > time_limit = %.3f", time_spent.toSec(), max_search_time);
             return 0;
         }
 
