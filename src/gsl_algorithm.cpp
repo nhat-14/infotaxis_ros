@@ -29,8 +29,6 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
     nh->param<double>("distance_found", distance_found, 0.5);
     nh->param<double>("ground_truth_x", source_pose_x, 1.5);
     nh->param<double>("ground_truth_y", source_pose_y, 3.0);
-    nh->param<double>("robot_pose_x", robot_pose_x, 0.0);
-    nh->param<double>("robot_pose_y", robot_pose_y, 0.0);
 
     //====================== Subscribers ======================
     localization_sub_ = nh_->subscribe(robot_location_topic,100,&GSLAlgorithm::localizationCallback,this);

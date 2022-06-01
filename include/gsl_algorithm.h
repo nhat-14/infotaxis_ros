@@ -39,7 +39,6 @@ class GSLAlgorithm {
         double distance_found;
         std::vector<geometry_msgs::PoseWithCovarianceStamped> robot_poses_vector;
         double source_pose_x, source_pose_y;
-        double robot_pose_x, robot_pose_y;
         std::string results_file;
     
         nav_msgs::OccupancyGrid map_;                                       //! Map
