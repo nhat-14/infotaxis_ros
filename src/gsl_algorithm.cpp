@@ -49,8 +49,8 @@ GSLAlgorithm::~GSLAlgorithm(){}
 //=================================================================================
 
 void GSLAlgorithm::localizationCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &msg) {
-    current_robot_pose = *msg;  //keep the most recent robot pose
-    robot_poses_vector.push_back(current_robot_pose); //Keep all poses
+    current_pose = *msg;  //keep the most recent robot pose
+    robot_poses_vector.push_back(current_pose); //Keep all poses
 }
 
 
@@ -109,7 +109,7 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
 
     start_point.header.frame_id = "map";
     start_point.header.stamp = ros::Time::now();
-    start_point.pose = current_robot_pose.pose.pose;
+    start_point.pose = current_pose.pose.pose;
 
     mb_srv.request.start = start_point;
     mb_srv.request.goal = target;
@@ -136,8 +136,8 @@ int GSLAlgorithm::checkSourceFound() {
         }
 
         //Check the distance from robot to source
-        double Ax = current_robot_pose.pose.pose.position.x - source_pose_x;
-        double Ay = current_robot_pose.pose.pose.position.y - source_pose_y;
+        double Ax = current_pose.pose.pose.position.x - source_pose_x;
+        double Ay = current_pose.pose.pose.position.y - source_pose_y;
         double dist = sqrt(pow(Ax,2) + pow(Ay,2));  
         if (dist < distance_found) {
             ROS_INFO("SUCCESS -> Time spent (%.3f s)", time_spent.toSec());

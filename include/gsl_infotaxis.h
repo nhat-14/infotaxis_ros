@@ -64,10 +64,9 @@ class InfotaxisGSL:public GSLAlgorithm {
         //Estimations
         double stdev_hit;
         double stdev_miss;
-        void estimateProbabilities(std::vector<std::vector<Cell> >& map,
-                                    bool hit,
-                                    double wind_direction,
+        void estimateProbabilities(std::vector<std::vector<Cell> >& map, bool hit, double wind_direction, 
                                     Eigen::Vector2i robot_pos);
+
         void propagateProbabilities(std::vector<std::vector<Cell> >& map,
                                     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& openSet,
                                     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& closedSet,

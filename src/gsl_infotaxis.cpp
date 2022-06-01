@@ -14,7 +14,7 @@ Cell::Cell(bool f, double a, double b, double c) {
 InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
     nh->param<double>("th_gas_present", th_gas_present, 0.3);
     nh->param<double>("th_wind_present", th_wind_present, 0.03);
-    nh->param<double>("stop_and_measure_time", stop_and_measure_time, 3);
+    nh->param<double>("stop_and_measure_time", stop_and_measure_time, 2.5);
     nh->param<double>("scale", scale, 65);                      //scale for dynamic map reduction
     nh->param<double>("convergence_thr", convergence_thr, 0.5); //threshold for source declaration
     nh->param<double>("stdev_hit", stdev_hit, 1.0);             //standard deviation of hit and miss?
@@ -31,9 +31,7 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh) {
     switch_marker       = nh->advertise<visualization_msgs::Marker>("switch_marker", 10);
     hit_marker          = nh->advertise<visualization_msgs::Marker>("hit_marker", 10);
     entropy_reporter    = nh->advertise<std_msgs::Float32>("entropy_reporter", 10);
-    test_marker          = nh->advertise<visualization_msgs::Marker>("test_marker", 10);
-
-
+    test_marker         = nh->advertise<visualization_msgs::Marker>("test_marker", 10);
 
     // Init State
     gasHit           = false;
@@ -56,34 +54,42 @@ InfotaxisGSL::~InfotaxisGSL() {}
 // see http://docs.ros.org/api/nav_msgs/html/msg/MapMetaData.html
 void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
     map_ = *msg;
+    float map_originX   = map_.info.origin.position.x;
+    float map_originY   = map_.info.origin.position.y;
+    float map_height     = map_.info.height;
+    float map_width      = map_.info.width;
+    float map_resolution = map_.info.resolution;
 
     ROS_INFO("Got the map of the environment!");
     ROS_INFO("--------------INFOTAXIS GSL---------------");
     ROS_INFO("Occupancy Map dimensions:"); //i is y(height), j is x(width)
     ROS_INFO("x_min:%.2f x_max:%.2f / y_min:%.2f y_max:%.2f",
-        map_.info.origin.position.x, map_.info.origin.position.x + map_.info.width*map_.info.resolution, 
-        map_.info.origin.position.y, map_.info.origin.position.y + map_.info.height*map_.info.resolution);
+        map_originX, map_originX + map_width*map_resolution, 
+        map_originY, map_originY + map_height*map_resolution);
     ROS_INFO("------------------------------------------");
 
-    std::vector<std::vector<int>> map_origin(map_.info.height,std::vector<int>(map_.info.width));
+    std::vector<std::vector<int>> map_origin(map_height,std::vector<int>(map_width));
 
     //invert from 0 is free to 1 is free
     int index=0;
     for(int i=0; i<map_origin.size(); i++) {
-        for(int j=0;j <map_origin[0].size(); j++) {
-            map_origin[i][j] = map_.data[index]==0?1:0; 
+        for(int j=0; j<map_origin[0].size(); j++) {
+            map_origin[i][j] = (map_.data[index] == 0? 1 : 0); 
             index++;
         }
     }
     
     // Initial a scaled down map with initial values
-    cells.resize(ceil((float)map_.info.height/scale));
+    int cells_height = ceil((float)map_height/scale);
+    int cells_width = ceil((float)map_width/scale);
+
+    cells.resize(cells_height);
     for(auto &cell :cells){
-        cell.resize(ceil((float)map_.info.width/scale),Cell(false,0,0,0));
+        cell.resize(cells_width, Cell(false,0,0,0));
     }
 
     numCells = 0; //number free cell in reduced map
-    int cellsI=0, cellsJ=0;
+    int cellsI = 0, cellsJ=0;
 
     for(int i=0; i<map_origin.size(); i+=scale) {
         cellsJ=0;
@@ -102,8 +108,7 @@ void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
             cells[cellsI][cellsJ].y      = coord.y();
             cells[cellsI][cellsJ].weight = libre?1:0; //free=1, occupied=0 unnormalize probabily of gas source
             cellsJ++; 
-
-            if(libre) numCells++;
+            if(libre) numCells++;   // for normalize the initial propability map
         }
         cellsI++;
     }
@@ -120,7 +125,7 @@ void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
 }
 
 void InfotaxisGSL::gasCallback(const olfaction_msgs::gas_sensorPtr& msg) {
-    //Only save gas data if we are in the Stop_and_Measure
+    //Only save gas data if in the Stop_and_Measure
     if (current_state == Infotaxis_state::STOP_AND_MEASURE) {
         gas_vector.push_back(msg->raw);
     }
@@ -129,7 +134,6 @@ void InfotaxisGSL::gasCallback(const olfaction_msgs::gas_sensorPtr& msg) {
 void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
     //1. Add obs to the vector of the last N wind speeds
     float downWind_direction = angles::normalize_angle(msg->wind_direction + M_PI); //simulation wind
-
     geometry_msgs::PoseStamped anemometer_downWind_pose, map_downWind_pose; //Transform from anemometer ref_system to map ref_system using TF
     try {
         anemometer_downWind_pose.header.frame_id = msg->header.frame_id;    
@@ -173,59 +177,122 @@ void InfotaxisGSL::getGasWindObservations() {
 
         gas_vector.clear();
         wind_spd_vector.clear();
-        previous_robot_pose=Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); 
+        previous_robot_pose=Eigen::Vector2d(current_pose.pose.pose.position.x, current_pose.pose.pose.position.y); 
         previous_state = current_state;
 
         ROS_ERROR("avg_gas=%.2f | avg_wind_spd=%.2f | avg_wind_dir=%.2f", avg_concentration, avg_wind_spd, avg_wind_dir);
         if (avg_concentration > th_gas_present && avg_wind_spd > th_wind_present) {
             //Gas & wind
+            ROS_WARN("GAS HIT!!!   New state --> MOVING");
             gasHit = true;
-            // previous_robot_pose = Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); //register where you were before moving
+            hit_notify();
+            // previous_robot_pose = Eigen::Vector2d(current_pose.pose.pose.position.x, current_pose.pose.pose.position.y); //register where you were before moving
             estimateProbabilities(cells, gasHit, avg_wind_dir, currentPosIndex);
             current_state = Infotaxis_state::MOVING;
-            ROS_WARN("GAS HIT!!!   New state --> MOVING");
         }
         else if (avg_concentration > th_gas_present) {
             //Only gas
+            ROS_WARN("GAS, BUT NO WIND  New state --> MOVING");
             gasHit=true;
-            // previous_robot_pose=Eigen::Vector2d(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y); 
+            hit_notify();
+            // previous_robot_pose=Eigen::Vector2d(current_pose.pose.pose.position.x, current_pose.pose.pose.position.y); 
             previous_state=current_state;
             current_state = Infotaxis_state::MOVING;
-            ROS_WARN("GAS, BUT NO WIND  New state --> MOVING");
+            
         }
         else {
             //Nothing
             gasHit=false;
+            ROS_WARN("NOTHING!!!! New state --> MOVING");
+            hit_notify();
             estimateProbabilities(cells, gasHit, avg_wind_dir, currentPosIndex);
             previous_state=current_state;
             current_state = Infotaxis_state::MOVING;
-            ROS_WARN("NOTHING!!!! New state --> MOVING");
+            
         }
-        hit_notify();
     }
 }
 
+/*
 //theo nhu code thi wind direction o day la down
 void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, bool hit, double wind_direction, Eigen::Vector2i robot_pos) {
     std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > openPropagationSet;
     std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > activePropagationSet;
     std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > closedPropagationSet;
-
-    int i=robot_pos.x(), j=robot_pos.y();
-
-    int oI=std::max(0,i-1);
-    int fI=std::min((int) map.size()-1,i+1);
-    int oJ=std::max(0,j-1);
-    int fJ=std::min((int) map[0].size()-1,j+1);
+    int i = robot_pos.x();
+    int j = robot_pos.y();
+    int oI = std::max(0,i-1);
+    int fI = std::min((int)map.size()-1, i+1);
+    int oJ = std::max(0,j-1);
+    int fJ = std::min((int)map[0].size()-1, j+1);
     
-    double sum=0;
     //estimate the probabilities for the immediate 8 neighbours
     Eigen::Vector2d coordR = indexToCoordinates(i,j);
     double upwind_dir      = angles::normalize_angle(wind_direction+M_PI);
     double move_dir        = atan2((previous_robot_pose.y()-coordR.y()),(previous_robot_pose.x()-coordR.x()))+M_PI;
 
-    plotplot(move_dir);
+    double maxHit          = gaussian(0,stdev_hit);
+    double maxMiss         = gaussian(0,stdev_miss);
 
+    
+
+    for(int r=oI; r<=fI; r++) {
+        for(int c=oJ; c<=fJ; c++) {
+            if(map[r][c].free) {
+                if(c!=j || r!=i) {
+                    Eigen::Vector2d coordP = indexToCoordinates(r,c);
+                    double dist;
+                    double cell_vector = angles::normalize_angle(atan2((coordR.y()-coordP.y()),(coordR.x()-coordP.x())));
+                    ROS_ERROR("NHATTTT: %f, %f, %f, %f, %f", coordR.x(), coordR.y(), coordP.x(), coordP.y(), cell_vector);
+
+                    if(hit) {
+                        dist=gaussian(atan2(sin(upwind_dir-cell_vector), cos(upwind_dir-cell_vector)),stdev_hit);
+                        // ROS_ERROR("ANGLEEEEEE: %f, %f, %f, %f, %f", wind_direction, upwind_dir, cell_vector, dist, map[r][c].weight);
+                    }
+                    else {
+                        dist=gaussian(atan2(sin(move_dir-cell_vector), cos(move_dir-cell_vector)), stdev_miss);
+                    }
+
+                    activePropagationSet.insert(std::pair<int,int>(r,c));
+                    map[r][c].weight    = dist*map[r][c].weight; 
+                    ROS_ERROR("DMMM, %f", map[r][c].weight);
+                    map[r][c].auxWeight = dist;
+                    map[r][c].distance  = (r==i||c==j)?1:sqrt(2);
+                }
+            }
+        }
+    }
+    
+    // map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
+    map[i][j].weight = 0;
+    // closedPropagationSet.insert(std::pair<int,int>(i,j));
+    map[i][j].auxWeight=0;
+    map[i][j].distance=0;
+    showWeights();
+    //propagate these short-range estimations to the entire environment using the navigation map
+    // propagateProbabilities(map, openPropagationSet, closedPropagationSet, activePropagationSet);   
+} */
+
+
+
+
+void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, bool hit, double wind_direction, Eigen::Vector2i robot_pos) {
+    std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > openPropagationSet;
+    std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > activePropagationSet;
+    std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > closedPropagationSet;
+
+    int i = robot_pos.x();
+    int j = robot_pos.y();
+    int oI = std::max(0,i-1);
+    int fI = std::min((int)map.size()-1, i+1);
+    int oJ = std::max(0,j-1);
+    int fJ = std::min((int)map[0].size()-1, j+1);
+    
+    //estimate the probabilities for the immediate 8 neighbours
+    Eigen::Vector2d coordR = indexToCoordinates(i,j);
+    double upwind_dir      = angles::normalize_angle(wind_direction+M_PI);
+    double move_dir        = atan2((coordR.y() - previous_robot_pose.y()),(coordR.x()-previous_robot_pose.x()));
+    move_dir += M_PI;   //assign higher probability to opposite moving direction when miss (just like upwind dir)
 
     double maxHit          = gaussian(0,stdev_hit);
     double maxMiss         = gaussian(0,stdev_miss);
@@ -236,25 +303,26 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
                 if(c!=j || r!=i) {
                     Eigen::Vector2d coordP = indexToCoordinates(r,c);
                     double dist;
-                    double cell_vector = atan2((coordR.y()-coordP.y()),(coordR.x()-coordP.x()));
+                    double cell_vector = angles::normalize_angle(atan2((coordP.y()-coordR.y()),(coordP.x()-coordR.x())));
 
                     if(hit) {
                         dist=gaussian(atan2(sin(upwind_dir-cell_vector), cos(upwind_dir-cell_vector)),stdev_hit);
-                    }else {
+                    }
+                    else {
                         dist=gaussian(atan2(sin(move_dir-cell_vector), cos(move_dir-cell_vector)), stdev_miss);
                     }
-                    map[r][c].weight=dist*map[r][c].weight; 
+
                     activePropagationSet.insert(std::pair<int,int>(r,c));
-                    map[r][c].auxWeight=dist;
-                    map[r][c].distance=(r==i||c==j)?1:sqrt(2);
-                    sum+=map[r][c].weight;
+                    map[r][c].weight    = dist*map[r][c].weight; 
+                    map[r][c].auxWeight = dist;
+                    map[r][c].distance  = (r==i||c==j)?1:sqrt(2);
                 }
             }
         }
     }
     
-    // map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
-    map[i][j].weight = 0;
+    map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
+    // map[i][j].weight = 0;
     // closedPropagationSet.insert(std::pair<int,int>(i,j));
     map[i][j].auxWeight=0;
     map[i][j].distance=0;
@@ -366,7 +434,7 @@ void InfotaxisGSL::cancel_navigation() {
     wind_spd_vector.clear();
     wind_dir_vector.clear();
     time_stopped = ros::Time::now();    //Start timer for initial wind measurement
-    currentPosIndex=coordinatesToIndex(current_robot_pose.pose.pose.position.x, current_robot_pose.pose.pose.position.y);
+    currentPosIndex = coordinatesToIndex(current_pose.pose.pose.position.x, current_pose.pose.pose.position.y);
     previous_state = current_state;
     current_state=Infotaxis_state::STOP_AND_MEASURE;
 }
@@ -423,7 +491,8 @@ void InfotaxisGSL::updateSets() {
 }
 
 double InfotaxisGSL::entropy(int i, int j, Eigen::Vector2d wind) { 
-    auto cells2 = cells; //temp copy of the matrix of cells that we can modify to simulate the effect of a measurement
+    //copy cells to estimate the probability ,aps without changing it
+    auto cells2 = cells; 
     double entH = 0;
     double entM = 0;
 
@@ -482,7 +551,7 @@ void InfotaxisGSL::moveTo(int i, int j) {
 
 Eigen::Vector2i InfotaxisGSL::coordinatesToIndex(double x, double y){
     return Eigen::Vector2i((y-map_.info.origin.position.y)/(scale*map_.info.resolution),
-                        (x-map_.info.origin.position.x)/(scale*map_.info.resolution));
+        (x-map_.info.origin.position.x)/(scale*map_.info.resolution));
 }
 
 Eigen::Vector2d InfotaxisGSL::indexToCoordinates(double i, double j){
@@ -564,14 +633,14 @@ void InfotaxisGSL::calculateWeight(std::vector<std::vector<Cell> >& map, int i, 
 void InfotaxisGSL::normalizeWeights(std::vector<std::vector<Cell> >& map) {
     double s = 0.0;
     for(int i=0; i<map.size(); i++){
-        for(int j=0;j<map[0].size();j++){
+        for(int j=0; j<map[0].size(); j++){
             if(map[i][j].free)
                 s+=map[i][j].weight;
         }
     }
 
-    for(int i=0;i<map.size();i++){
-        for(int j=0;j<map[0].size();j++){
+    for(int i=0; i<map.size(); i++){
+        for(int j=0; j<map[0].size(); j++){
             if(map[i][j].free)
                 map[i][j].weight=map[i][j].weight/s;
         }
@@ -586,16 +655,16 @@ void InfotaxisGSL::showWeights() {
         for(int b=0; b<cells[0].size(); b++) {
             if(cells[a][b].free){
                 geometry_msgs::Point p; 
-                    p.x=cells[a][b].x;
-                    p.y=cells[a][b].y;
+                p.x=cells[a][b].x;
+                p.y=cells[a][b].y;
                 points.points.push_back(p);
 
                 Eigen::Vector3d col = valueToColor(cells[a][b].weight, 0.0001, convergence_thr);
                 std_msgs::ColorRGBA color;
-                    color.a=1;
-                    color.r=col[0];
-                    color.g=col[1];
-                    color.b=col[2];
+                color.a=1;
+                color.r=col[0];
+                color.g=col[1];
+                color.b=col[2];
                 points.colors.push_back(color);
             }
         }
@@ -624,7 +693,7 @@ visualization_msgs::Marker InfotaxisGSL::emptyMarker() {
 
 Eigen::Vector3d InfotaxisGSL::valueToColor(double val, double low, double high){
     double r, g, b;
-    val=log10(val);
+    val = log10(val);
     double range=(log10(high)-log10(low))/4;
     low=log10(low);
     if(val<low+range){
@@ -707,8 +776,6 @@ void InfotaxisGSL::hit_notify() {
 
 
 void InfotaxisGSL::plotplot(float haha) {
-    ROS_ERROR("bjasbfjkadvbjkldanvlkjdmnv");
-
     visualization_msgs::Marker wind_point_inv;
     wind_point_inv.header.frame_id = "map";
     wind_point_inv.id = 1;

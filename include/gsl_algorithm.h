@@ -44,7 +44,7 @@ class GSLAlgorithm {
     
         nav_msgs::OccupancyGrid map_;                                       //! Map
         geometry_msgs::PoseWithCovarianceStamped movingPose;                //! Robot pose on the global frame referential
-        geometry_msgs::PoseWithCovarianceStamped current_robot_pose;        //! Robot pose on the global frame referential
+        geometry_msgs::PoseWithCovarianceStamped current_pose;        //! Robot pose on the global frame referential
         MoveBaseClient mb_ac;                                               //! Move Base Action Server.
 
         //Subscriptions
