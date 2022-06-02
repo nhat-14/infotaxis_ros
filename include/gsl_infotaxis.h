@@ -3,7 +3,6 @@
 #include <iostream>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
-#include <eigen3/Eigen/Dense>
 #include <math.h>
 #include <bits/stdc++.h>
 #include <unordered_set>
@@ -17,15 +16,12 @@ class Cell {
         Cell(bool free, double x, double y, double weight);
         ~Cell(){};
         bool free;
-        double x, y, weight, auxWeight;
-        double distance;        
+        double x, y, weight, auxWeight, distance;        
 };
 
 struct WindVector {
-    int i;
-    int j;
-    double speed;
-    double angle;
+    int i, j;
+    double speed, angle;
 };
 
 class InfotaxisGSL:public GSLAlgorithm {
@@ -67,10 +63,7 @@ class InfotaxisGSL:public GSLAlgorithm {
         //Estimations
         double stdev_hit;
         double stdev_miss;
-        void estimateProbabilities(std::vector<std::vector<Cell> >& map,
-                                    bool hit,
-                                    double wind_direction,
-                                    Eigen::Vector2i robot_pos);
+        void estimateProbabilities(std::vector<std::vector<Cell> >& map, bool hit, double wind_direction, Eigen::Vector2i robot_pos);
         void propagateProbabilities(std::vector<std::vector<Cell> >& map,
                                     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& openSet,
                                     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& closedSet,
@@ -110,16 +103,11 @@ class InfotaxisGSL:public GSLAlgorithm {
         std::vector<std::vector<Cell> > cells;
         ros::Publisher probability_markers;
         ros::Publisher entropy_reporter;
-        ros::Publisher switch_marker;
-        ros::Publisher hit_marker;
-        void switch_notify();
-        void hit_notify();
         Eigen::Vector2i currentPosIndex;
         
         //Auxiliary functions
         visualization_msgs::Marker emptyMarker();
         void showWeights();
-        Eigen::Vector3d valueToColor(double val, double low, double high);
         Eigen::Vector2i coordinatesToIndex(double x, double y);
         Eigen::Vector2d indexToCoordinates(double i, double j);
         double gaussian(double distance, double sigma);
