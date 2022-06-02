@@ -3,11 +3,11 @@
 #include <iostream>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
-#include <eigen3/Eigen/Dense>
 #include <math.h>
 #include <bits/stdc++.h>
 #include <unordered_set>
 #include <gmrf_wind_mapping/WindEstimation.h>
+#include <visual_cpt.h>
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 enum class Infotaxis_state {WAITING_FOR_MAP, STOP_AND_MEASURE, MOVING};
@@ -25,7 +25,7 @@ struct WindVector {
     double speed, angle;
 };
 
-class InfotaxisGSL:public GSLAlgorithm {
+class InfotaxisGSL:public GSLAlgorithm, public VisualCPT {
     public:
         InfotaxisGSL(ros::NodeHandle *nh);
         ~InfotaxisGSL();
@@ -106,25 +106,12 @@ class InfotaxisGSL:public GSLAlgorithm {
         std::vector<std::vector<Cell> > cells;
         ros::Publisher probability_markers;
         ros::Publisher entropy_reporter;
-        ros::Publisher switch_marker;
-        ros::Publisher hit_marker;
-        void switch_notify();
-        void hit_notify();
-
-
-
-
-        ros::Publisher test_marker;
-        void plotplot(float haha);
-
-
-
+      
         Eigen::Vector2i currentPosIndex;
         
         //Auxiliary functions
-        visualization_msgs::Marker emptyMarker();
+        // visualization_msgs::Marker emptyMarker();
         void showWeights();
-        Eigen::Vector3d valueToColor(double val, double low, double high);
         Eigen::Vector2i coordinatesToIndex(double x, double y);
         Eigen::Vector2d indexToCoordinates(double i, double j);
         double gaussian(double distance, double sigma);
