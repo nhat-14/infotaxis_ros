@@ -7,6 +7,7 @@
 #include <bits/stdc++.h>
 #include <unordered_set>
 #include <gmrf_wind_mapping/WindEstimation.h>
+#include <visual_cpt.h>
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
 enum class Infotaxis_state {WAITING_FOR_MAP, STOP_AND_MEASURE, MOVING};
@@ -24,7 +25,7 @@ struct WindVector {
     double speed, angle;
 };
 
-class InfotaxisGSL:public GSLAlgorithm {
+class InfotaxisGSL:public GSLAlgorithm, public VisualCPT  {
     public:
         InfotaxisGSL(ros::NodeHandle *nh);
         ~InfotaxisGSL();
@@ -106,7 +107,7 @@ class InfotaxisGSL:public GSLAlgorithm {
         Eigen::Vector2i currentPosIndex;
         
         //Auxiliary functions
-        visualization_msgs::Marker emptyMarker();
+        // visualization_msgs::Marker emptyMarker();
         void showWeights();
         Eigen::Vector2i coordinatesToIndex(double x, double y);
         Eigen::Vector2d indexToCoordinates(double i, double j);
