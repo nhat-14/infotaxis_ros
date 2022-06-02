@@ -73,7 +73,7 @@ include_directories(
 )
 
 ## Declare a C++ executable
-add_executable(gsl_node src/gsl_algorithm.cpp src/gsl_server.cpp src/gsl_infotaxis.cpp)
+add_executable(gsl_node src/gsl_algorithm.cpp src/gsl_server.cpp src/gsl_infotaxis.cpp src/visual_cpt.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
