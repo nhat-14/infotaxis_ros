@@ -39,7 +39,7 @@ class InfotaxisGSL:public GSLAlgorithm, public VisualCPT {
         ros::Subscriber gas_sub_;                                           //! Gas readings subscriber
         ros::Subscriber wind_sub_;                                          //! Wind readings subscriber
         ros::Subscriber map_sub_;                                           //! Map subscriber.
-        void gasCallback(const std_msgs::String::ConstPtr& msg); //override;
+        void gasCallback(const std_msgs::String::ConstPtr& msg); 
         void windCallback(const olfaction_msgs::anemometerPtr& msg);
         void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
         void goalDoneCallback(const actionlib::SimpleClientGoalState &state, const move_base_msgs::MoveBaseResultConstPtr &result) override;
