@@ -1,6 +1,8 @@
 #include <gsl_infotaxis.h>
 #include <boost/format.hpp>
 #include "std_msgs/Float32.h"
+#include "std_msgs/String.h"
+
 
 Cell::Cell(bool f, double a, double b, double c) {
     free=f;
@@ -118,13 +120,10 @@ void InfotaxisGSL::gasCallback(const std_msgs::String::ConstPtr& msg) {
     //Only save gas data if we are in the Stop_and_Measure
     std::string miss_gas = "nothing";
     if (current_state == Infotaxis_state::STOP_AND_MEASURE) {
-        gas_vector.push_back(msg->raw);
+        gasHit = (miss_gas.compare(msg->data.c_str()) == 0)? false : true;
+        gas_vector.push_back((float)gasHit);
     }
 }
-
-
-
-
 
 void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
     //1. Add obs to the vector of the last N wind speeds
@@ -139,7 +138,7 @@ void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
         tf_.transformPose("map", anemometer_downWind_pose, map_downWind_pose);  //doan nay meo hieu sao phai cos 2 objrect
     }
     catch(tf::TransformException &ex) {
-        ROS_ERROR("InfotaxisPT - Error: %s", ex.what());
+        ROS_ERROR("Error: %s", ex.what());
         return;
     }
 
