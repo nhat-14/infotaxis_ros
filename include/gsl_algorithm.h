@@ -42,10 +42,10 @@ class GSLAlgorithm {
         double robot_pose_x, robot_pose_y;
         std::string results_file;
     
-        nav_msgs::OccupancyGrid map_;                                       //! Map
-        geometry_msgs::PoseWithCovarianceStamped movingPose;                //! Robot pose on the global frame referential
-        geometry_msgs::PoseWithCovarianceStamped current_robot_pose;        //! Robot pose on the global frame referential
-        MoveBaseClient mb_ac;                                               //! Move Base Action Server.
+        nav_msgs::OccupancyGrid map_;                             //! Map
+        geometry_msgs::PoseWithCovarianceStamped movingPose;      //! Robot pose on the global frame referential
+        geometry_msgs::PoseWithCovarianceStamped current_pose;    //! Robot pose on the global frame referential
+        MoveBaseClient mb_ac;                                     //! Move Base Action Server.
 
         //Subscriptions
         ros::Subscriber localization_sub_;
