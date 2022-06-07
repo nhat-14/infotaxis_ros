@@ -15,12 +15,12 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh), VisualCPT(nh
     nh->param<double>("th_gas_present", th_gas_present, 0.3);
     nh->param<double>("th_wind_present", th_wind_present, 0.03);
     nh->param<double>("stop_and_measure_time", stop_and_measure_time, 3);
-    nh->param<double>("scale", scale, 65);                      //scale for dynamic map reduction
-    nh->param<double>("convergence_thr", convergence_thr, 0.5); //threshold for source declaration
+    nh->param<double>("scale", scale, 10);                      //scale for dynamic map reduction
+    // nh->param<double>("convergence_thr", convergence_thr, 0.5); //threshold for source declaration
     nh->param<double>("stdev_hit", stdev_hit, 1.0);             //standard deviation of hit and miss?
     nh->param<double>("stdev_miss", stdev_miss, 2.0);
-    nh->param<double>("ground_truth_x", ground_truth_x, 1.5);
-    nh->param<double>("ground_truth_y", ground_truth_y, 3.0);
+    // nh->param<double>("ground_truth_x", ground_truth_x, 1.5);
+    // nh->param<double>("ground_truth_y", ground_truth_y, 3.0);
     
     // Subscribers & publisher 
     gas_sub_  = nh->subscribe(enose_topic,1,&InfotaxisGSL::gasCallback, this);
@@ -40,7 +40,7 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh), VisualCPT(nh
     ROS_INFO("INITIALIZATON COMPLETED--> WAITING_FOR_MAP");
   	ros::NodeHandle n;
     clientW = n.serviceClient<gmrf_wind_mapping::WindEstimation>("/WindEstimation");            //de y!! tam thoi bo qua
-    entropy_gain_rate.push_back(0.0); 
+    entropy_gain_his.push_back(0.0); 
 }
 
 InfotaxisGSL::~InfotaxisGSL() {}
@@ -114,12 +114,17 @@ void InfotaxisGSL::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
     ROS_WARN("[Infotaxis] STARTING THE SEARCH");
 }
 
-void InfotaxisGSL::gasCallback(const olfaction_msgs::gas_sensorPtr& msg) {
+void InfotaxisGSL::gasCallback(const std_msgs::String::ConstPtr& msg) {
     //Only save gas data if we are in the Stop_and_Measure
+    std::string miss_gas = "nothing";
     if (current_state == Infotaxis_state::STOP_AND_MEASURE) {
         gas_vector.push_back(msg->raw);
     }
 }
+
+
+
+
 
 void InfotaxisGSL::windCallback(const olfaction_msgs::anemometerPtr& msg) {
     //1. Add obs to the vector of the last N wind speeds
