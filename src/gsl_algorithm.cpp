@@ -20,15 +20,15 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
     ROS_INFO("Found MoveBase! Initializing module...");
 
     //===================== Load Parameters ===================
-    nh->param<std::string>("enose_topic", enose_topic, "/PID/Sensor_reading");
-    nh->param<std::string>("anemometer_topic", anemometer_topic, "/Anemometer/WindSensor_reading");
+    nh->param<std::string>("enose_topic", enose_topic, "/arx");
+    nh->param<std::string>("anemometer_topic", anemometer_topic, "/chatter");
     nh->param<std::string>("robot_location_topic", robot_location_topic, "/amcl_pose");
     nh->param<std::string>("map_topic", map_topic, "/map");
 
     nh->param<double>("max_search_time", max_search_time, 500.0);
-    nh->param<double>("distance_found", distance_found, 0.5);
-    nh->param<double>("ground_truth_x", source_pose_x, 1.5);
-    nh->param<double>("ground_truth_y", source_pose_y, 3.0);
+    // nh->param<double>("distance_found", distance_found, 0.5);
+    // nh->param<double>("ground_truth_x", source_pose_x, 1.5);
+    // nh->param<double>("ground_truth_y", source_pose_y, 3.0);
     nh->param<double>("robot_pose_x", robot_pose_x, 0.0);
     nh->param<double>("robot_pose_y", robot_pose_y, 0.0);
 
@@ -133,14 +133,14 @@ int GSLAlgorithm::checkSourceFound() {
             return 0;
         }
 
-        //Check the distance from robot to source
-        double Ax = current_robot_pose.pose.pose.position.x - source_pose_x;
-        double Ay = current_robot_pose.pose.pose.position.y - source_pose_y;
-        double dist = sqrt(pow(Ax,2) + pow(Ay,2));  
-        if (dist < distance_found) {
-            ROS_INFO("SUCCESS -> Time spent (%.3f s)", time_spent.toSec());
-            return 1;
-        }
+        // //Check the distance from robot to source
+        // double Ax = current_robot_pose.pose.pose.position.x - source_pose_x;
+        // double Ay = current_robot_pose.pose.pose.position.y - source_pose_y;
+        // double dist = sqrt(pow(Ax,2) + pow(Ay,2));  
+        // if (dist < distance_found) {
+        //     ROS_INFO("SUCCESS -> Time spent (%.3f s)", time_spent.toSec());
+        //     return 1;
+        // }
     }
     //In other case, keep searching
     return -1;
