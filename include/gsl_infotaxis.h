@@ -3,44 +3,45 @@
 #include <iostream>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
-#include <eigen3/Eigen/Dense>
 #include <math.h>
 #include <bits/stdc++.h>
 #include <unordered_set>
 #include <gmrf_wind_mapping/WindEstimation.h>
+#include <visual_cpt.h>
+#include "std_msgs/Float32.h"
+#include "std_msgs/String.h"
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
-enum class Infotaxis_state {WAITING_FOR_MAP, EXPLORATION, STOP_AND_MEASURE, MOVING};
+enum class Infotaxis_state {WAITING_FOR_MAP, STOP_AND_MEASURE, MOVING};
 
 class Cell {
     public:
         Cell(bool free, double x, double y, double weight);
         ~Cell(){};
         bool free;
-        double x, y, weight, auxWeight;
-        double distance;        
+        double x, y, weight, auxWeight, distance;        
 };
 
 struct WindVector {
-    int i;
-    int j;
-    double speed;
-    double angle;
+    int i, j;
+    double speed, angle;
 };
 
-class InfotaxisGSL:public GSLAlgorithm {
+class InfotaxisGSL:public GSLAlgorithm, public VisualCPT {
     public:
         InfotaxisGSL(ros::NodeHandle *nh);
         ~InfotaxisGSL();
-        
         void getGasWindObservations();
         Infotaxis_state getState();
         void setGoal();
 
     protected:
-        void gasCallback(const olfaction_msgs::gas_sensorPtr& msg) override;
-        void windCallback(const olfaction_msgs::anemometerPtr& msg) override;
-        void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) override;
+        ros::Subscriber gas_sub_;                                           //! Gas readings subscriber
+        ros::Subscriber wind_sub_;                                          //! Wind readings subscriber
+        ros::Subscriber map_sub_;                                           //! Map subscriber.
+        void gasCallback(const std_msgs::String::ConstPtr& msg); 
+        void windCallback(const olfaction_msgs::anemometerPtr& msg);
+        void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
         void goalDoneCallback(const actionlib::SimpleClientGoalState &state, const move_base_msgs::MoveBaseResultConstPtr &result) override;
          
         Infotaxis_state previous_state, current_state;
@@ -53,22 +54,19 @@ class InfotaxisGSL:public GSLAlgorithm {
         double th_gas_present;
         double th_wind_present;
 
-        std::vector<float> stop_and_measure_gas_v;
-        std::vector<float> stop_and_measure_windS_v;
-        std::vector<float> stop_and_measure_windD_v;
+        std::vector<float> gas_vector;
+        std::vector<float> wind_spd_vector;
+        std::vector<float> wind_dir_vector;
         std::vector<float> entropy_gain_his;
         std::vector<float> entropy_gain_rate;
 
-        double average_concentration, average_wind_direction, average_wind_speed;
-        float get_average_wind_direction(std::vector<float> const &v);
+        double avg_concentration, avg_wind_dir, avg_wind_spd;
+        float get_avg_wind_dir(std::vector<float> const &v);
 
         //Estimations
         double stdev_hit;
         double stdev_miss;
-        void estimateProbabilities(std::vector<std::vector<Cell> >& map,
-                                    bool hit,
-                                    double wind_direction,
-                                    Eigen::Vector2i robot_pos);
+        void estimateProbabilities(std::vector<std::vector<Cell> >& map, bool hit, double wind_direction, Eigen::Vector2i robot_pos);
         void propagateProbabilities(std::vector<std::vector<Cell> >& map,
                                     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& openSet,
                                     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& closedSet,
@@ -88,9 +86,7 @@ class InfotaxisGSL:public GSLAlgorithm {
         void cancel_navigation(); 
         
         Eigen::Vector2d previous_robot_pose;
-
         std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int>> > openMoveSet;
-        std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int>> > closedMoveSet;
         std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int>> > visitedSet;
         
         void updateSets();
@@ -110,16 +106,11 @@ class InfotaxisGSL:public GSLAlgorithm {
         std::vector<std::vector<Cell> > cells;
         ros::Publisher probability_markers;
         ros::Publisher entropy_reporter;
-        ros::Publisher switch_marker;
-        ros::Publisher hit_marker;
-        void switch_notify(double r, double g, double b);
-        void hit_notify(double r, double g, double b);
         Eigen::Vector2i currentPosIndex;
         
         //Auxiliary functions
-        visualization_msgs::Marker emptyMarker();
+        // visualization_msgs::Marker emptyMarker();
         void showWeights();
-        Eigen::Vector3d valueToColor(double val, double low, double high);
         Eigen::Vector2i coordinatesToIndex(double x, double y);
         Eigen::Vector2d indexToCoordinates(double i, double j);
         double gaussian(double distance, double sigma);
@@ -128,5 +119,4 @@ class InfotaxisGSL:public GSLAlgorithm {
         double t1;
         double convergence_thr;
         double ground_truth_x, ground_truth_y;
-        void save_results_to_file(int result, int i, int j);
 };
