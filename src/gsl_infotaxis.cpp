@@ -1,8 +1,5 @@
 #include <gsl_infotaxis.h>
 #include <boost/format.hpp>
-#include "std_msgs/Float32.h"
-#include "std_msgs/String.h"
-
 
 Cell::Cell(bool f, double a, double b, double c) {
     free=f;
