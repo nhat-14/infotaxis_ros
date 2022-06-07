@@ -27,7 +27,7 @@ struct WindVector {
     double speed, angle;
 };
 
-class InfotaxisGSL:public GSLAlgorithm, public VisualCPT  {
+class InfotaxisGSL:public GSLAlgorithm, public VisualCPT {
     public:
         InfotaxisGSL(ros::NodeHandle *nh);
         ~InfotaxisGSL();
