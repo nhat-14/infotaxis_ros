@@ -449,21 +449,20 @@ void InfotaxisGSL::moveTo(int i, int j) {
 
     Eigen::Vector2d pos = indexToCoordinates(i,j);
     Eigen::Vector2d coordR = indexToCoordinates(currentPosIndex.x(),currentPosIndex.y());
+    ROS_INFO("MOVING TO %f,%f",pos.x(),pos.y());
 
     double move_angle= (atan2(pos.y()-coordR.y(),pos.x()-coordR.x()));
-    goal.target_pose.pose.position.x = coordR.x();
-    goal.target_pose.pose.position.y = coordR.y();
-    goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
-    while(!checkGoal(&goal));
-    ROS_INFO("MOVING TO %f,%f",pos.x(),pos.y());
-    
-    mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
+    // goal.target_pose.pose.position.x = coordR.x();
+    // goal.target_pose.pose.position.y = coordR.y();
+    // goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
+    // mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
     
     ros::Rate r(0.6); // 10 hz
     r.sleep();
     goal.target_pose.pose.position.x = pos.x();
     goal.target_pose.pose.position.y = pos.y();
     goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
+    while(!checkGoal(&goal));
     mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
 
     inMotion=true;
@@ -501,11 +500,12 @@ float InfotaxisGSL::get_avg_wind_dir(std::vector<float> const &v) {
     return average_angle;
 }
 
+//ask the gmrf_wind service for the estimated wind vector in cell i,j
 std::vector<WindVector> InfotaxisGSL::estimateWind(){
-    //ask the gmrf_wind service for the estimated wind vector in cell i,j
     gmrf_wind_mapping::WindEstimation srv;
-
     std::vector<std::pair<int,int> > indices;
+
+    // Get coordinate of each cells in openMoveSet to call in GMRF_wind service
     for(auto& p: openMoveSet){
         Eigen::Vector2d coords = indexToCoordinates(p.first,p.second);
         srv.request.x.push_back(coords.x());
