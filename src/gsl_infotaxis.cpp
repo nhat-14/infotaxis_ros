@@ -14,8 +14,8 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh), VisualCPT(nh
     nh->param<double>("th_gas_present", th_gas_present, 0.3);
     nh->param<double>("th_wind_present", th_wind_present, 0.03);
     nh->param<double>("stop_and_measure_time", stop_and_measure_time, 3);
-    nh->param<double>("scale", scale, 10);                      //scale for dynamic map reduction
-    // nh->param<double>("convergence_thr", convergence_thr, 0.5); //threshold for source declaration
+    nh->param<double>("scale", scale, 8);                      //scale for dynamic map reduction
+    nh->param<double>("convergence_thr", convergence_thr, 0.5); //threshold for source declaration
     nh->param<double>("stdev_hit", stdev_hit, 1.0);             //standard deviation of hit and miss?
     nh->param<double>("stdev_miss", stdev_miss, 2.0);
     // nh->param<double>("ground_truth_x", ground_truth_x, 1.5);
@@ -212,7 +212,6 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
     std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > openPropagationSet;
     std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > activePropagationSet;
     std::unordered_set< std::pair<int, int>, boost::hash<std::pair<int, int> > > closedPropagationSet;
-
     int i=robot_pos.x();
     int j=robot_pos.y();
     int oI=std::max(0,i-1);
@@ -252,8 +251,8 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
         }
     }
     
-    map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
-    // map[i][j].weight = 0;
+    // map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
+    map[i][j].weight = 0;
     // closedPropagationSet.insert(std::pair<int,int>(i,j));
     map[i][j].auxWeight=0;
     map[i][j].distance=0;
@@ -266,7 +265,6 @@ void InfotaxisGSL::propagateProbabilities(std::vector<std::vector<Cell> >& map,
     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& openPropagationSet,
     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& closedPropagationSet,
     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& activePropagationSet){
-    
     while(!activePropagationSet.empty()) {
         while(!activePropagationSet.empty()){
             auto p = *activePropagationSet.begin();
@@ -469,7 +467,7 @@ void InfotaxisGSL::moveTo(int i, int j) {
     goal.target_pose.pose.position.x = pos.x();
     goal.target_pose.pose.position.y = pos.y();
     goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
-    while(!checkGoal(&goal));
+    // while(!checkGoal(&goal));
     mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
 
     inMotion=true;
@@ -568,6 +566,7 @@ void InfotaxisGSL::normalizeWeights(std::vector<std::vector<Cell> >& map) {
         }
     }
 
+    
     for(int i=0;i<map.size();i++){
         for(int j=0;j<map[0].size();j++){
             if(map[i][j].free)

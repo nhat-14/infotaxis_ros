@@ -26,11 +26,11 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
     nh->param<std::string>("map_topic", map_topic, "/map");
 
     nh->param<double>("max_search_time", max_search_time, 500.0);
-    // nh->param<double>("distance_found", distance_found, 0.5);
-    // nh->param<double>("ground_truth_x", source_pose_x, 1.5);
-    // nh->param<double>("ground_truth_y", source_pose_y, 3.0);
-    // nh->param<double>("robot_pose_x", robot_pose_x, 0.0);
-    // nh->param<double>("robot_pose_y", robot_pose_y, 0.0);
+    nh->param<double>("distance_found", distance_found, 0.4);
+    nh->param<double>("ground_truth_x", source_pose_x, 0.96);
+    nh->param<double>("ground_truth_y", source_pose_y, 0.0);
+    nh->param<double>("robot_pose_x", robot_pose_x, -2.0);
+    nh->param<double>("robot_pose_y", robot_pose_y, 0.08);
 
     //====================== Subscribers ======================
     localization_sub_ = nh_->subscribe(robot_location_topic,100,&GSLAlgorithm::localizationCallback,this);
@@ -133,14 +133,14 @@ int GSLAlgorithm::checkSourceFound() {
             return 0;
         }
 
-        // //Check the distance from robot to source
-        // double Ax = current_robot_pose.pose.pose.position.x - source_pose_x;
-        // double Ay = current_robot_pose.pose.pose.position.y - source_pose_y;
-        // double dist = sqrt(pow(Ax,2) + pow(Ay,2));  
-        // if (dist < distance_found) {
-        //     ROS_INFO("SUCCESS -> Time spent (%.3f s)", time_spent.toSec());
-        //     return 1;
-        // }
+        //Check the distance from robot to source
+        double Ax = current_pose.pose.pose.position.x - source_pose_x;
+        double Ay = current_pose.pose.pose.position.y - source_pose_y;
+        double dist = sqrt(pow(Ax,2) + pow(Ay,2));  
+        if (dist < distance_found) {
+            ROS_INFO("SUCCESS -> Time spent (%.3f s)", time_spent.toSec());
+            return 1;
+        }
     }
     //In other case, keep searching
     return -1;
