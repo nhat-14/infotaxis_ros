@@ -100,7 +100,7 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
         return false;
     }
 
-    //3. Use Move Base Service to declare a valid navigation goal
+    //3. Use MoveBase service to declare a valid goal and get path from robot to it
     nav_msgs::GetPlan mb_srv;
     geometry_msgs::PoseStamped start_point;
     start_point.header.frame_id = "map";
