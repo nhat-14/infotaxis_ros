@@ -176,8 +176,9 @@ void InfotaxisGSL::getGasWindObservations() {
         wind_spd_vector.clear();
         previous_robot_pose=Eigen::Vector2d(current_pose.pose.pose.position.x, current_pose.pose.pose.position.y); 
         previous_state = current_state;
-        // plotplot(avg_wind_dir);
+     
         ROS_ERROR("avg_gas=%.2f | avg_wind_spd=%.2f | avg_wind_dir=%.2f", avg_concentration, avg_wind_spd, avg_wind_dir);
+        
         if (avg_concentration > th_gas_present && avg_wind_spd > th_wind_present) {
             //Gas & wind
             ROS_WARN("GAS HIT!!!   New state --> MOVING");
@@ -222,9 +223,9 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
     int oJ = std::max(0,j-1);
     int fJ = std::min((int)map[0].size()-1, j+1);
     
-    //estimate the probabilities for the immediate 8 neighbours
+    //estimate the probabilities for the 8 neighbours
     Eigen::Vector2d coordR = indexToCoordinates(i,j);
-    double upwind_dir      = angles::normalize_angle(wind_direction+M_PI);
+    double upwind_dir      = angles::normalize_angle(wind_direction + M_PI);
     double move_dir        = atan2((coordR.y() - previous_robot_pose.y()),(coordR.x()-previous_robot_pose.x()));
     move_dir += M_PI;   //assign higher probability to opposite moving direction when miss (just like upwind dir)
 
@@ -247,7 +248,7 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
                     }
 
                     activePropagationSet.insert(std::pair<int,int>(r,c));
-                    map[r][c].weight    = dist*map[r][c].weight; 
+                    map[r][c].weight    *= dist; 
                     map[r][c].auxWeight = dist;
                     map[r][c].distance  = (r==i||c==j)?1:sqrt(2);
                 }
@@ -255,13 +256,13 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
         }
     }
     
-    map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
+    map[i][j].weight = map[i][j].weight* gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
     // map[i][j].weight = 0;
-    // closedPropagationSet.insert(std::pair<int,int>(i,j));
+    closedPropagationSet.insert(std::pair<int,int>(i,j));
     map[i][j].auxWeight=0;
     map[i][j].distance=0;
 
-    //propagate these short-range estimations to the entire environment using the navigation map
+    //propagate these estimations to the entire environment
     propagateProbabilities(map, openPropagationSet, closedPropagationSet, activePropagationSet);   
 }
 
@@ -271,7 +272,7 @@ void InfotaxisGSL::propagateProbabilities(std::vector<std::vector<Cell> >& map,
     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& activePropagationSet){
     
     while(!activePropagationSet.empty()) {
-        while(!activePropagationSet.empty()){
+        while(!activePropagationSet.empty()) {
             auto p = *activePropagationSet.begin();
             activePropagationSet.erase(activePropagationSet.begin());
             closedPropagationSet.insert(p);
@@ -283,17 +284,17 @@ void InfotaxisGSL::propagateProbabilities(std::vector<std::vector<Cell> >& map,
             int fC=std::min((int) map[0].size()-1,p.second+1);
             
             //8-neighbour propagation
-            for(int i=oR;i<=fR;i++){
-                for(int j=oC;j<=fC;j++){
+            for(int i=oR; i<=fR; i++){
+                for(int j=oC; j<=fC; j++){
                     calculateWeight(map, i,j, p, openPropagationSet,closedPropagationSet,activePropagationSet);
                 }
             }
         }
         
         for(auto& par : openPropagationSet){
-            map[par.first][par.second].weight=map[par.first][par.second].weight*map[par.first][par.second].auxWeight;
+            map[par.first][par.second].weight *= map[par.first][par.second].auxWeight;
         }
-        activePropagationSet=openPropagationSet;
+        activePropagationSet = openPropagationSet;
         openPropagationSet.clear();
     }
     normalizeWeights(map);
@@ -305,6 +306,7 @@ void InfotaxisGSL::setGoal() {
     int i,j;
     showWeights();
     updateSets();
+
     std::vector<WindVector> wind = estimateWind();
     double ent    = -100;
     double entAux = 0;
@@ -377,9 +379,9 @@ void InfotaxisGSL::cancel_navigation() {
 void InfotaxisGSL::updateSets() {
     int i = currentPosIndex.x();
     int j = currentPosIndex.y();
-    ROS_ERROR("ENTROPY_GAIN: %f", get_average_vector(entropy_gain_rate));
+    // ROS_ERROR("ENTROPY_GAIN: %f", get_average_vector(entropy_gain_rate));
 
-    if (number_revisited > 0){
+    if (number_revisited > 0) {
         ros::Duration time_spent = ros::Time::now() - last_revisited;
         if (time_spent.toSec() > 60.0) {
             number_revisited = 0;
@@ -401,6 +403,7 @@ void InfotaxisGSL::updateSets() {
             ROS_WARN("SWITCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!");
         }
     }
+
     visitedSet.insert(std::pair<int,int>(i,j));
 
     // check wether pos is near the boundary
@@ -410,7 +413,6 @@ void InfotaxisGSL::updateSets() {
     int fJ = std::min((int) cells[0].size()-1, j+1);
 
     openMoveSet.clear();
-
     for(int r=oI; r<=fI; r++){
         for(int c=oJ; c<=fJ; c++){
             // if(r==i && c==j){
@@ -543,21 +545,24 @@ std::vector<WindVector> InfotaxisGSL::estimateWind(){
 void InfotaxisGSL::calculateWeight(std::vector<std::vector<Cell> >& map, int i, int j, std::pair<int,int> p, 
     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& openPropagationSet,
     std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& closedPropagationSet,
-    std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& activePropagationSet){
+    std::unordered_set<std::pair<int, int>, boost::hash< std::pair<int, int> > >& activePropagationSet) {
+        
     if(map[i][j].free && closedPropagationSet.find(std::pair<int,int>(i,j)) == closedPropagationSet.end() && activePropagationSet.find(std::pair<int,int>(i,j)) == activePropagationSet.end()){
+        //if there already was a path to this cell
         if(openPropagationSet.find(std::pair<int,int>(i,j))!= openPropagationSet.end()) {
-            //if there already was a path to this cell
             double d = map[p.first][p.second].distance + ((i==p.first||j==p.second)?1:sqrt(2)); //distance of this new path to the same cell
-            
+            // ROS_INFO("rghrgrhrjhyjkuli;l %f,%f",map[p.first][p.second].distance,((i==p.first||j==p.second)?1:sqrt(2)));
             if(abs(d-map[i][j].distance)<0.1){ //if the distance is the same, keep the best probability!
                 map[i][j].auxWeight=std::max(map[p.first][p.second].auxWeight , map[i][j].auxWeight);
-
-            }else if(d<map[i][j].distance){ //keep the shortest path
-                map[i][j].auxWeight=map[p.first][p.second].auxWeight;
-                map[i][j].distance=d;
+                
+            }
+            else if(d<map[i][j].distance){ //keep the shortest path
+                map[i][j].auxWeight = map[p.first][p.second].auxWeight;
+                map[i][j].distance = d;
             }                        
-        }else{
-            map[i][j].auxWeight=map[p.first][p.second].auxWeight;
+        }
+        else { // didn't visit yet
+            map[i][j].auxWeight = map[p.first][p.second].auxWeight;
             map[i][j].distance = map[p.first][p.second].distance + ((i==p.first||j==p.second)?1:sqrt(2));
             openPropagationSet.insert(std::pair<int,int>(i,j));
         }
@@ -581,8 +586,8 @@ void InfotaxisGSL::normalizeWeights(std::vector<std::vector<Cell> >& map) {
     }
 }
 
-//============================ VISUALIZATION ===============================
 
+// Visulize the lastest source location probability map
 void InfotaxisGSL::showWeights() {
     visualization_msgs::Marker points = emptyMarker(numCells);
     for(int a=0; a<cells.size(); a++) {
@@ -595,10 +600,10 @@ void InfotaxisGSL::showWeights() {
 
                 Eigen::Vector3d col = valueToColor(cells[a][b].weight, 0.0001, convergence_thr);
                 std_msgs::ColorRGBA color;
-                color.a=1;
-                color.r=col[0];
-                color.g=col[1];
-                color.b=col[2];
+                color.a = 1;
+                color.r = col[0];
+                color.g = col[1];
+                color.b = col[2];
                 points.colors.push_back(color);
             }
         }
