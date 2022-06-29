@@ -90,7 +90,6 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
     float target_x = target.pose.position.x;
     float target_y = target.pose.position.y;
     ROS_INFO("Checking Goal [%.2f, %.2f] in map frame", target_x, target_y);
-
     // Check that goal falls inside the map
     float map_min_x = map_.info.origin.position.x;
     float map_max_x = map_.info.origin.position.x + map_.info.width*map_.info.resolution;
@@ -104,7 +103,6 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
     //3. Use MoveBase service to declare a valid goal and get path from robot to it
     nav_msgs::GetPlan mb_srv;
     geometry_msgs::PoseStamped start_point;
-
     start_point.header.frame_id = "map";
     start_point.header.stamp = ros::Time::now();
     start_point.pose = current_pose.pose.pose;
@@ -113,7 +111,7 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
     mb_srv.request.goal = target;
     mb_srv.request.tolerance = 0.1;
     
-    mb_client.call(mb_srv);
+    //get path from robot to candidate.
     if( mb_client.call(mb_srv) && mb_srv.response.plan.poses.size()>1) {
         return true;
     }
@@ -129,7 +127,7 @@ int GSLAlgorithm::checkSourceFound() {
         //Check if timeout
         ros::Duration time_spent = ros::Time::now() - start_time;
         if (time_spent.toSec() > max_search_time) {
-            ROS_INFO("FAILURE-> Time spent (%.3f s) > time_limit = %.3f", time_spent.toSec(), max_search_time);
+            ROS_INFO("FAILURE-> Time spent (%.3f s) > max_search_time = %.3f", time_spent.toSec(), max_search_time);
             return 0;
         }
 
