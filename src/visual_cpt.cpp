@@ -67,8 +67,8 @@ void VisualCPT::switch_notify(int planning_mode) {
     marker.id = 0;
     marker.type = visualization_msgs::Marker::SPHERE;
     marker.action = visualization_msgs::Marker::ADD;
-    marker.pose.position.x = -0.5;
-    marker.pose.position.y = 2.0;
+    marker.pose.position.x = 1.5;
+    marker.pose.position.y = 2.4;
     marker.pose.position.z = 2.5;
     marker.pose.orientation.x = 0.0;
     marker.pose.orientation.y = 0.0;
@@ -95,8 +95,8 @@ void VisualCPT::hit_notify(bool gasHit) {
     marker.id = 0;
     marker.type = visualization_msgs::Marker::CUBE;
     marker.action = visualization_msgs::Marker::ADD;
-    marker.pose.position.x = 0.5;
-    marker.pose.position.y = 2.0;
+    marker.pose.position.x = 3.1;
+    marker.pose.position.y = 2.4;
     marker.pose.position.z = 2.5;
     marker.pose.orientation.x = 0.0;
     marker.pose.orientation.y = 0.0;

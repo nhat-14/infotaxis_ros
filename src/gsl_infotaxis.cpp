@@ -253,12 +253,13 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
     
     // map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
     map[i][j].weight = 0;
-    // closedPropagationSet.insert(std::pair<int,int>(i,j));
+    closedPropagationSet.insert(std::pair<int,int>(i,j));
     map[i][j].auxWeight=0;
     map[i][j].distance=0;
 
     //propagate these short-range estimations to the entire environment using the navigation map
-    propagateProbabilities(map, openPropagationSet, closedPropagationSet, activePropagationSet);   
+    propagateProbabilities(map, openPropagationSet, closedPropagationSet, activePropagationSet);  
+    map[i][j].weight = 0; 
 }
 
 void InfotaxisGSL::propagateProbabilities(std::vector<std::vector<Cell> >& map,
@@ -457,10 +458,10 @@ void InfotaxisGSL::moveTo(int i, int j) {
     ROS_INFO("MOVING TO %f,%f",pos.x(),pos.y());
 
     double move_angle= (atan2(pos.y()-coordR.y(),pos.x()-coordR.x()));
-    // goal.target_pose.pose.position.x = coordR.x();
-    // goal.target_pose.pose.position.y = coordR.y();
-    // goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
-    // mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
+    goal.target_pose.pose.position.x = coordR.x();
+    goal.target_pose.pose.position.y = coordR.y();
+    goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
+    mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
     
     ros::Rate r(0.6); // 10 hz
     r.sleep();

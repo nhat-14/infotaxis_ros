@@ -25,12 +25,12 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
     nh->param<std::string>("robot_location_topic", robot_location_topic, "/amcl_pose");
     nh->param<std::string>("map_topic", map_topic, "/map");
 
-    nh->param<double>("max_search_time", max_search_time, 500.0);
-    nh->param<double>("distance_found", distance_found, 0.4);
-    nh->param<double>("ground_truth_x", source_pose_x, 0.96);
+    nh->param<double>("max_search_time", max_search_time, 550.0);
+    nh->param<double>("distance_found", distance_found, 0.3);
+    nh->param<double>("ground_truth_x", source_pose_x, 3.38);
     nh->param<double>("ground_truth_y", source_pose_y, 0.0);
-    nh->param<double>("robot_pose_x", robot_pose_x, -2.0);
-    nh->param<double>("robot_pose_y", robot_pose_y, 0.08);
+    nh->param<double>("robot_pose_x", robot_pose_x, 0.0);
+    nh->param<double>("robot_pose_y", robot_pose_y, -1.0);
 
     //====================== Subscribers ======================
     localization_sub_ = nh_->subscribe(robot_location_topic,100,&GSLAlgorithm::localizationCallback,this);
