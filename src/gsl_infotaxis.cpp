@@ -32,13 +32,13 @@ InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh), VisualCPT(nh
     gasHit           = false;
     number_revisited = 0;
     planning_mode    = 0;
+    number_steps     = 0;
     previous_state   = Infotaxis_state::WAITING_FOR_MAP;
     current_state    = Infotaxis_state::WAITING_FOR_MAP; 
 
     ROS_INFO("INITIALIZATON COMPLETED--> WAITING_FOR_MAP");
   	ros::NodeHandle n;
     clientW = n.serviceClient<gmrf_wind_mapping::WindEstimation>("/WindEstimation");            //de y!! tam thoi bo qua
-    entropy_gain_his.push_back(0.0); 
 }
 
 InfotaxisGSL::~InfotaxisGSL() {}
@@ -300,7 +300,7 @@ void InfotaxisGSL::setGoal() {
     showWeights();
     updateSets();
     std::vector<WindVector> wind = estimateWind();
-    double ent    = -100;
+    double ent    = -100000;
     double entAux = 0;
 
     if (planning_mode == 0) {
@@ -324,14 +324,11 @@ void InfotaxisGSL::setGoal() {
             it = entropy_gain_rate.begin();
             entropy_gain_rate.erase(it);
         }
-        
-        entropy_gain_his.push_back(ent);
-        ROS_ERROR("Step: %li", entropy_gain_his.size());
 
         std_msgs::Float32 max_entropy_gain;
         max_entropy_gain.data = get_average_vector(entropy_gain_rate);    
         entropy_reporter.publish(max_entropy_gain);
-        openMoveSet.erase(std::pair<int,int>(i,j));
+        // openMoveSet.erase(std::pair<int,int>(i,j));
     }
 
     else {
@@ -345,10 +342,12 @@ void InfotaxisGSL::setGoal() {
                 }
             }
         }
-        openMoveSet.erase(std::pair<int,int>(i,j));
+        // openMoveSet.erase(std::pair<int,int>(i,j));
     }
     switch_notify(planning_mode);
     planning_mode = 0;  //switching back to infotaxis
+    number_steps += 1;
+    ROS_ERROR("Step: %li", number_steps);
     moveTo(i,j);
 }
 
@@ -565,7 +564,6 @@ void InfotaxisGSL::normalizeWeights(std::vector<std::vector<Cell> >& map) {
         }
     }
 
-    
     for(int i=0;i<map.size();i++){
         for(int j=0;j<map[0].size();j++){
             if(map[i][j].free)

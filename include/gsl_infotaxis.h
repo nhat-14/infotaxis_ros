@@ -57,7 +57,6 @@ class InfotaxisGSL:public GSLAlgorithm, public VisualCPT {
         std::vector<float> gas_vector;
         std::vector<float> wind_spd_vector;
         std::vector<float> wind_dir_vector;
-        std::vector<float> entropy_gain_his;
         std::vector<float> entropy_gain_rate;
 
         double avg_concentration, avg_wind_dir, avg_wind_spd;
@@ -100,6 +99,7 @@ class InfotaxisGSL:public GSLAlgorithm, public VisualCPT {
         double scale;
         int numCells;
         int planning_mode; //0 is infotaxis, 1 is dijstrak
+        int number_steps;
 
         int number_revisited;
 
