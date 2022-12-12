@@ -61,6 +61,9 @@ void VisualCPT::switch_notify(int planning_mode) {
     if (planning_mode == 1) {
         r=1; g=0; b=0;      //red
     }
+    if (planning_mode == 2) {
+        r=0; g=0; b=1;      //red
+    }
     visualization_msgs::Marker marker;
     marker.header.frame_id="map";
     marker.header.stamp=ros::Time::now();
