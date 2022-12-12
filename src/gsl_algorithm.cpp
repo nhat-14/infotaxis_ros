@@ -25,10 +25,12 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
     nh->param<std::string>("robot_location_topic", robot_location_topic, "/amcl_pose");
     nh->param<std::string>("map_topic", map_topic, "/map");
 
-    nh->param<double>("max_search_time", max_search_time, 550.0);
-    nh->param<double>("distance_found", distance_found, 0.3);
-    nh->param<double>("ground_truth_x", source_pose_x, 3.38);
-    nh->param<double>("ground_truth_y", source_pose_y, 0.0);
+    nh->param<double>("max_search_time", max_search_time, 800.0);
+    nh->param<double>("distance_found", distance_found, 0.2);
+    // nh->param<double>("ground_truth_x", source_pose_x, 3.38);
+    // nh->param<double>("ground_truth_y", source_pose_y, 0.0);
+    nh->param<double>("ground_truth_x", source_pose_x, 1.8);
+    nh->param<double>("ground_truth_y", source_pose_y, -1.8);
 
     //====================== Subscribers ======================
     localization_sub_ = nh_->subscribe(robot_location_topic,100,&GSLAlgorithm::localizationCallback,this);
@@ -109,7 +111,7 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
 
     mb_srv.request.start = start_point;
     mb_srv.request.goal = target;
-    mb_srv.request.tolerance = 0.1;
+    mb_srv.request.tolerance = 0.2;
     
     //get path from robot to candidate.
     if( mb_client.call(mb_srv) && mb_srv.response.plan.poses.size()>1) {

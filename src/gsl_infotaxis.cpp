@@ -13,11 +13,11 @@ Cell::Cell(bool f, double a, double b, double c) {
 InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh), VisualCPT(nh) {
     nh->param<double>("th_gas_present", th_gas_present, 0.3);
     nh->param<double>("th_wind_present", th_wind_present, 0.03);
-    nh->param<double>("stop_and_measure_time", stop_and_measure_time, 2);
+    nh->param<double>("stop_and_measure_time", stop_and_measure_time, 4);
     nh->param<double>("scale", scale, 8);                      //scale for dynamic map reduction
     nh->param<double>("convergence_thr", convergence_thr, 0.5); //threshold for source declaration
     nh->param<double>("stdev_hit", stdev_hit, 1.0);             //standard deviation of hit and miss?
-    nh->param<double>("stdev_miss", stdev_miss, 2.0);
+    nh->param<double>("stdev_miss", stdev_miss, 3.0);
     // nh->param<double>("ground_truth_x", ground_truth_x, 1.5);
     // nh->param<double>("ground_truth_y", ground_truth_y, 3.0);
     
@@ -239,7 +239,8 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
                         dist=gaussian(atan2(sin(upwind_dir-cell_vector), cos(upwind_dir-cell_vector)),stdev_hit);
                     }
                     else {
-                        dist=gaussian(atan2(sin(move_dir-cell_vector), cos(move_dir-cell_vector)), stdev_miss);
+                        // dist=gaussian(atan2(sin(move_dir-cell_vector), cos(move_dir-cell_vector)), stdev_miss);
+                        dist=gaussian(atan2(sin(wind_direction-cell_vector), cos(wind_direction-cell_vector)), stdev_miss);
                     }
                     activePropagationSet.insert(std::pair<int,int>(r,c));
                     map[r][c].weight    *= dist; 
@@ -250,8 +251,8 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
         }
     }
     
-    // map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
-    map[i][j].weight = 0;
+    map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
+    // map[i][j].weight = 0;
     closedPropagationSet.insert(std::pair<int,int>(i,j));
     map[i][j].auxWeight=0;
     map[i][j].distance=0;
@@ -336,6 +337,9 @@ void InfotaxisGSL::setGoal() {
         // Detect max and min weights in the map
         for(int a=0; a<cells.size(); a++) {
             for(int b=0; b<cells[0].size(); b++) {
+                if (a == currentPosIndex.x() && b == currentPosIndex.y()) {
+                    continue;
+                }
                 if(cells[a][b].weight > max) {
                     max = cells[a][b].weight;
                     i=a; j=b;
@@ -347,7 +351,7 @@ void InfotaxisGSL::setGoal() {
     switch_notify(planning_mode);
     planning_mode = 0;  //switching back to infotaxis
     number_steps += 1;
-    ROS_ERROR("Step: %li", number_steps);
+    ROS_ERROR("Step: %i", number_steps);
     moveTo(i,j);
 }
 
@@ -388,6 +392,7 @@ void InfotaxisGSL::updateSets() {
 
         if ((number_revisited > 5 && get_average_vector(entropy_gain_rate) < 0.05) || number_revisited > 10) {
             planning_mode = 1;
+
             number_revisited = 0;
             visitedSet.clear();
             ROS_WARN("SWITCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!");
@@ -405,11 +410,11 @@ void InfotaxisGSL::updateSets() {
 
     for(int r=oI; r<=fI; r++){
         for(int c=oJ; c<=fJ; c++){
-            // if(r==i && c==j){
-            //     continue;   //Never stay in the same place
-            // }
-            std::pair<int,int> p(r,c);
-            if(cells[r][c].free && cells[r][c].distance == 1.0) {
+            if((r==i && c==j)||(r!=i && c!=j)){
+                continue;   //Never stay in the same place or move diagonal
+            }
+            if(cells[r][c].free) {
+                std::pair<int,int> p(r,c);
                 openMoveSet.insert(p);
             }
         }
@@ -454,17 +459,18 @@ void InfotaxisGSL::moveTo(int i, int j) {
     Eigen::Vector2d coordR = indexToCoordinates(currentPosIndex.x(),currentPosIndex.y());
     ROS_INFO("MOVING TO %f,%f",pos.x(),pos.y());
 
-    double move_angle= (atan2(pos.y()-coordR.y(),pos.x()-coordR.x()));
-    goal.target_pose.pose.position.x = coordR.x();
-    goal.target_pose.pose.position.y = coordR.y();
-    goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
-    mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
+    double move_angle= (atan2(coordR.y()-pos.y(),coordR.x()-pos.x()));
+    // goal.target_pose.pose.position.x = coordR.x();
+    // goal.target_pose.pose.position.y = coordR.y();
+    // goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
+    // mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
     
-    ros::Rate r(0.6); // 10 hz
-    r.sleep();
+    // ros::Rate r(0.4); // 10 hz
+    // r.sleep();
     goal.target_pose.pose.position.x = pos.x();
     goal.target_pose.pose.position.y = pos.y();
-    goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
+    // goal.target_pose.pose.orientation = tf::createQuaternionMsgFromYaw(angles::normalize_angle(move_angle));
+    goal.target_pose.pose.orientation.w = 1.0;
     // while(!checkGoal(&goal));
     mb_ac.sendGoal(goal, boost::bind(&InfotaxisGSL::goalDoneCallback, this,  _1, _2), boost::bind(&InfotaxisGSL::goalActiveCallback, this), boost::bind(&InfotaxisGSL::goalFeedbackCallback, this, _1));
 
