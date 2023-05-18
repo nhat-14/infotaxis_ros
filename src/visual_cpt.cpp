@@ -58,7 +58,7 @@ Eigen::Vector3d VisualCPT::valueToColor(double val, double low, double high){
 
 void VisualCPT::switch_notify(int planning_mode) {
     double r=0, g=1, b=0;   //green
-    if (planning_mode == 1) {
+    if (planning_mode == 1 || planning_mode == 2) {
         r=1; g=0; b=0;      //red
     }
     visualization_msgs::Marker marker;

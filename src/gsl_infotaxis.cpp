@@ -253,6 +253,7 @@ void InfotaxisGSL::estimateProbabilities(std::vector<std::vector<Cell> >& map, b
     
     map[i][j].weight = map[i][j].weight*gaussian((hit?0:M_PI), (hit?stdev_hit:stdev_miss));
     // map[i][j].weight = 0;
+    map[i][j].weight *= 0.02;
     closedPropagationSet.insert(std::pair<int,int>(i,j));
     map[i][j].auxWeight=0;
     map[i][j].distance=0;
@@ -333,26 +334,15 @@ void InfotaxisGSL::setGoal() {
     }
 
     else {
-        double max=0;
-        // Detect max and min weights in the map
-        for(int a=0; a<cells.size(); a++) {
-            for(int b=0; b<cells[0].size(); b++) {
-                if (a == currentPosIndex.x() && b == currentPosIndex.y()) {
-                    continue;
-                }
-                if(cells[a][b].weight > max) {
-                    max = cells[a][b].weight;
-                    i=a; j=b;
-                }
-            }
-        }
-        // openMoveSet.erase(std::pair<int,int>(i,j));
+        Eigen::Vector2i target = jump(planning_mode);
+        i=target.x();
+        j=target.y();
     }
     switch_notify(planning_mode);
     planning_mode = 0;  //switching back to infotaxis
     number_steps += 1;
     ROS_ERROR("Step: %i", number_steps);
-    moveTo(i,j);
+    moveTo(i,j);  
 }
 
 void InfotaxisGSL::cancel_navigation() {
@@ -373,32 +363,8 @@ void InfotaxisGSL::cancel_navigation() {
 void InfotaxisGSL::updateSets() {
     int i = currentPosIndex.x();
     int j = currentPosIndex.y();
-    // ROS_ERROR("ENTROPY_GAIN: %f", get_average_vector(entropy_gain_rate));
 
-    if (number_revisited > 0){
-        ros::Duration time_spent = ros::Time::now() - last_revisited;
-        if (time_spent.toSec() > 60.0) {
-            number_revisited = 0;
-            visitedSet.clear();
-            ROS_WARN("CLEAN!!!!!!");
-        }
-    }
-
-    if (visitedSet.find(std::pair<int,int>(i,j)) != visitedSet.end()) {
-        last_revisited = ros::Time::now();
-        
-        number_revisited += 1;
-        ROS_ERROR("number of revisited: %i", number_revisited);
-
-        if ((number_revisited > 5 && get_average_vector(entropy_gain_rate) < 0.05) || number_revisited > 10) {
-            planning_mode = 1;
-
-            number_revisited = 0;
-            visitedSet.clear();
-            ROS_WARN("SWITCHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!");
-        }
-    }
-    visitedSet.insert(std::pair<int,int>(i,j));
+    planning_mode = get_jump_target();
 
     // check wether pos is near the boundary
     int oI = std::max(0, i-1);
@@ -576,6 +542,71 @@ void InfotaxisGSL::normalizeWeights(std::vector<std::vector<Cell> >& map) {
                 map[i][j].weight=map[i][j].weight/s;
         }
     }
+}
+
+
+
+
+int InfotaxisGSL::get_jump_target(){
+    double max=0;
+    double total_env_A = 0.0;
+    double total_env_B = 0.0;
+
+    // Eigen::Vector2i brake_line = coordinatesToIndex(1.42, 0);
+    // int x_limit = brake_line.x();
+    
+
+    // Detect max and min weights in the map
+    for(int a=0; a<cells.size(); a++) {
+        for(int b=0; b<cells[0].size(); b++) {
+            if (cells[a][b].x <= 1.50) {
+                total_env_A += cells[a][b].weight;
+            }
+            else {
+                total_env_B += cells[a][b].weight;
+            }
+        }
+    }
+    ROS_INFO("A vs B : %f, %f\n", total_env_A, total_env_B);
+    bool move_to_B = (total_env_B > total_env_A);
+    bool is_in_A = (current_pose.pose.pose.position.x <= 1.50);
+    
+    ROS_INFO("is_move_to_B : %d ", move_to_B);
+    ROS_INFO("is_in_A : %d\n", is_in_A);
+
+    if (move_to_B && is_in_A && (number_steps>3)) {
+        ROS_WARN("JUMPPPPP TO B !!!");
+        return 2;     // jump to B
+    }
+    else if (!move_to_B && !is_in_A && (number_steps>3)) {
+        ROS_WARN("JUMPPPPP TO A !!!");
+        return 1;    // jump to A
+    }
+    else {
+        return 0;   //don't jump
+    }
+}
+
+Eigen::Vector2i InfotaxisGSL::jump(int sub_env){
+    int i, j;
+    double max=0;
+
+    if (sub_env==2) {
+        for(int a=0; a<cells.size(); a++) {
+            for(int b=0; b<cells[0].size(); b++) {
+                if((cells[a][b].weight > max) && (cells[a][b].x > 1.50)) {
+                    max = cells[a][b].weight;
+                    i=a; j=b;
+    }}}}
+
+    else if (sub_env==1) {
+        for(int a=0; a<cells.size(); a++) {
+            for(int b=0; b<cells[0].size(); b++) {
+                if((cells[a][b].weight > max) && (cells[a][b].x <= 1.50)) {
+                    max = cells[a][b].weight;
+                    i=a; j=b;
+    }}}}
+    return Eigen::Vector2i(i,j);
 }
 
 //============================ VISUALIZATION ===============================
