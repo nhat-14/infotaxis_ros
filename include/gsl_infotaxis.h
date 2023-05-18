@@ -115,7 +115,7 @@ class InfotaxisGSL:public GSLAlgorithm, public VisualCPT {
         Eigen::Vector2d indexToCoordinates(double i, double j);
         double gaussian(double distance, double sigma);
         int get_jump_target();
-        void jump(int sub_env);
+        Eigen::Vector2i jump(int sub_env);
         
         //Termination condition
         double t1;
