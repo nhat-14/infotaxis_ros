@@ -21,16 +21,14 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
 
     //===================== Load Parameters ===================
     nh->param<std::string>("enose_topic", enose_topic, "/arx");
-    nh->param<std::string>("anemometer_topic", anemometer_topic, "/chatter");
+    nh->param<std::string>("anemometer_topic", anemometer_topic, "/windTopic");
     nh->param<std::string>("robot_location_topic", robot_location_topic, "/amcl_pose");
     nh->param<std::string>("map_topic", map_topic, "/map");
 
-    nh->param<double>("max_search_time", max_search_time, 800.0);
-    nh->param<double>("distance_found", distance_found, 0);
-    nh->param<double>("ground_truth_x", source_pose_x, 3.42);
-    nh->param<double>("ground_truth_y", source_pose_y, -1.03);
-    // nh->param<double>("ground_truth_x", source_pose_x, 1.8);
-    // nh->param<double>("ground_truth_y", source_pose_y, -1.8);
+    nh->param<double>("max_search_time", max_search_time, 600.0);
+    nh->param<double>("distance_found", distance_found, 0.3);
+    nh->param<double>("ground_truth_x", source_pose_x, 4.2);
+    nh->param<double>("ground_truth_y", source_pose_y, -0.90);
 
     //====================== Subscribers ======================
     localization_sub_ = nh_->subscribe(robot_location_topic,100,&GSLAlgorithm::localizationCallback,this);

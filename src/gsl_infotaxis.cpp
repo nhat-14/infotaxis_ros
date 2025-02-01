@@ -13,7 +13,7 @@ Cell::Cell(bool f, double a, double b, double c) {
 InfotaxisGSL::InfotaxisGSL(ros::NodeHandle *nh) : GSLAlgorithm(nh), VisualCPT(nh) {
     nh->param<double>("th_gas_present", th_gas_present, 0.3);
     nh->param<double>("th_wind_present", th_wind_present, 0.03);
-    nh->param<double>("stop_and_measure_time", stop_and_measure_time, 4);
+    nh->param<double>("stop_and_measure_time", stop_and_measure_time, 2);
     nh->param<double>("scale", scale, 8);                      //scale for dynamic map reduction
     nh->param<double>("convergence_thr", convergence_thr, 0.5); //threshold for source declaration
     nh->param<double>("stdev_hit", stdev_hit, 1.0);             //standard deviation of hit and miss?
