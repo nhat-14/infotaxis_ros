@@ -1,0 +1,7 @@
+stop_and_measure_time: 2.0
+subenv_x: [-100.0, 1.0, 2.6, 100.0]
+max_search_time: 600.0
+distance_found: 0.3
+source_pose_x: 4.2
+source_pose_y: -0.8
+cell_map_ratio: 8

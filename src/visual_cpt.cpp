@@ -56,16 +56,19 @@ Eigen::Vector3d VisualCPT::valueToColor(double val, double low, double high){
     return Eigen::Vector3d(r,g,b);
 }
 
-void VisualCPT::switch_notify(int planning_mode) {
+void VisualCPT::switch_notify(std::string planning_mode) {
     double r=0, g=1, b=0;   //green
-    if (planning_mode == 1 || planning_mode == 2) {
+    if (planning_mode == "dijkstra") {
         r=1; g=0; b=0;      //red
+    }
+    if (planning_mode == "kbp") {
+        r=0; g=0; b=1;      //blue
     }
     visualization_msgs::Marker marker;
     marker.header.frame_id="map";
     marker.header.stamp=ros::Time::now();
     marker.id = 0;
-    marker.type = visualization_msgs::Marker::SPHERE;
+    marker.type = visualization_msgs::Marker::CUBE;
     marker.action = visualization_msgs::Marker::ADD;
     marker.pose.position.x = 1.5;
     marker.pose.position.y = 2.4;

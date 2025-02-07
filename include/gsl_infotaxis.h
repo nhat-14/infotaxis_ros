@@ -96,13 +96,12 @@ class InfotaxisGSL:public GSLAlgorithm, public VisualCPT {
         std::vector<WindVector> estimateWind();
 
         //Cells
-        double scale;
+        int cell_map_ratio;
         int numCells;
-        int planning_mode; //0 is infotaxis, 1 is dijstrak
+        std::string planning_mode; //0 is infotaxis, 1 is dijstrak
         int number_steps;
-
         int number_revisited;
-
+        std::vector<float> subenv_x;
         std::vector<std::vector<Cell> > cells;
         ros::Publisher probability_markers;
         ros::Publisher entropy_reporter;
@@ -114,8 +113,8 @@ class InfotaxisGSL:public GSLAlgorithm, public VisualCPT {
         Eigen::Vector2i coordinatesToIndex(double x, double y);
         Eigen::Vector2d indexToCoordinates(double i, double j);
         double gaussian(double distance, double sigma);
-        int get_jump_target();
-        Eigen::Vector2i jump(int sub_env);
+        Eigen::Vector2i get_jump_target();
+        Eigen::Vector2i jump(int subenv_id);
         
         //Termination condition
         double t1;

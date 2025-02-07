@@ -9,7 +9,7 @@ class VisualCPT {
         VisualCPT(ros::NodeHandle *nh);
         ~VisualCPT();
         
-        void switch_notify(int planning_mode);
+        void switch_notify(std::string planning_mode);
         void hit_notify(bool gasHit);
         void plotplot(float haha);
         Eigen::Vector3d valueToColor(double val, double low, double high);
