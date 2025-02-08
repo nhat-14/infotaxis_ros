@@ -21,16 +21,14 @@ GSLAlgorithm::GSLAlgorithm(ros::NodeHandle *nh) : nh_(nh), mb_ac("move_base", tr
 
     //===================== Load Parameters ===================
     nh->param<std::string>("enose_topic", enose_topic, "/arx");
-    nh->param<std::string>("anemometer_topic", anemometer_topic, "/chatter");
+    nh->param<std::string>("anemometer_topic", anemometer_topic, "/windTopic");
     nh->param<std::string>("robot_location_topic", robot_location_topic, "/amcl_pose");
     nh->param<std::string>("map_topic", map_topic, "/map");
 
-    nh->param<double>("max_search_time", max_search_time, 500.0);
-    // nh->param<double>("distance_found", distance_found, 0.5);
-    // nh->param<double>("ground_truth_x", source_pose_x, 1.5);
-    // nh->param<double>("ground_truth_y", source_pose_y, 3.0);
-    // nh->param<double>("robot_pose_x", robot_pose_x, 0.0);
-    // nh->param<double>("robot_pose_y", robot_pose_y, 0.0);
+    nh->param<double>("max_search_time", max_search_time, 600.0);
+    nh->param<double>("distance_found", distance_found, 0.3);
+    nh->param<double>("source_pose_x", source_pose_x, 0.0);
+    nh->param<double>("source_pose_y", source_pose_y, 0.0);
 
     //====================== Subscribers ======================
     localization_sub_ = nh_->subscribe(robot_location_topic,100,&GSLAlgorithm::localizationCallback,this);
@@ -102,7 +100,7 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
         return false;
     }
 
-    //3. Use Move Base Service to declare a valid navigation goal
+    //3. Use MoveBase service to declare a valid goal and get path from robot to it
     nav_msgs::GetPlan mb_srv;
     geometry_msgs::PoseStamped start_point;
     start_point.header.frame_id = "map";
@@ -111,7 +109,7 @@ bool GSLAlgorithm::checkGoal(move_base_msgs::MoveBaseGoal * goal) {
 
     mb_srv.request.start = start_point;
     mb_srv.request.goal = target;
-    mb_srv.request.tolerance = 0.1;
+    mb_srv.request.tolerance = 0.2;
     
     //get path from robot to candidate.
     if( mb_client.call(mb_srv) && mb_srv.response.plan.poses.size()>1) {
@@ -133,14 +131,14 @@ int GSLAlgorithm::checkSourceFound() {
             return 0;
         }
 
-        // //Check the distance from robot to source
-        // double Ax = current_robot_pose.pose.pose.position.x - source_pose_x;
-        // double Ay = current_robot_pose.pose.pose.position.y - source_pose_y;
-        // double dist = sqrt(pow(Ax,2) + pow(Ay,2));  
-        // if (dist < distance_found) {
-        //     ROS_INFO("SUCCESS -> Time spent (%.3f s)", time_spent.toSec());
-        //     return 1;
-        // }
+        //Check the distance from robot to source
+        double Ax = current_pose.pose.pose.position.x - source_pose_x;
+        double Ay = current_pose.pose.pose.position.y - source_pose_y;
+        double dist = sqrt(pow(Ax,2) + pow(Ay,2));  
+        if (dist < distance_found) {
+            ROS_INFO("SUCCESS -> Time spent (%.3f s)", time_spent.toSec());
+            return 1;
+        }
     }
     //In other case, keep searching
     return -1;

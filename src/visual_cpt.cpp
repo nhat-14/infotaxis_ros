@@ -56,19 +56,22 @@ Eigen::Vector3d VisualCPT::valueToColor(double val, double low, double high){
     return Eigen::Vector3d(r,g,b);
 }
 
-void VisualCPT::switch_notify(int planning_mode) {
+void VisualCPT::switch_notify(std::string planning_mode) {
     double r=0, g=1, b=0;   //green
-    if (planning_mode == 1) {
+    if (planning_mode == "dijkstra") {
         r=1; g=0; b=0;      //red
+    }
+    if (planning_mode == "kbp") {
+        r=0; g=0; b=1;      //blue
     }
     visualization_msgs::Marker marker;
     marker.header.frame_id="map";
     marker.header.stamp=ros::Time::now();
     marker.id = 0;
-    marker.type = visualization_msgs::Marker::SPHERE;
+    marker.type = visualization_msgs::Marker::CUBE;
     marker.action = visualization_msgs::Marker::ADD;
-    marker.pose.position.x = 5.5;
-    marker.pose.position.y = 7;
+    marker.pose.position.x = 1.5;
+    marker.pose.position.y = 2.4;
     marker.pose.position.z = 2.5;
     marker.pose.orientation.x = 0.0;
     marker.pose.orientation.y = 0.0;
@@ -95,8 +98,8 @@ void VisualCPT::hit_notify(bool gasHit) {
     marker.id = 0;
     marker.type = visualization_msgs::Marker::CUBE;
     marker.action = visualization_msgs::Marker::ADD;
-    marker.pose.position.x = 3.5;
-    marker.pose.position.y = 7;
+    marker.pose.position.x = 3.1;
+    marker.pose.position.y = 2.4;
     marker.pose.position.z = 2.5;
     marker.pose.orientation.x = 0.0;
     marker.pose.orientation.y = 0.0;
@@ -125,7 +128,7 @@ void VisualCPT::plotplot(float haha) {
     wind_point_inv.pose.position.z = 0.0;
 
     wind_point_inv.pose.orientation = tf::createQuaternionMsgFromYaw(haha);
-    wind_point_inv.scale.x = 2.5;	  //arrow leng`ht
+    wind_point_inv.scale.x = 1.5;	  //arrow leng`ht
     wind_point_inv.scale.y = 0.1;	  //arrow width
     wind_point_inv.scale.z = 0.1;	  //arrow height
     wind_point_inv.color.r = 0.0;

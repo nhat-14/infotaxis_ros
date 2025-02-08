@@ -1,0 +1,6 @@
+<launch>
+    <node pkg="gmrf_wind_mapping" name="gmrf_wind_mapping_node" type="gmrf_wind_mapping_node"/>
+    <node pkg="infotaxis" name="gsl_node" type="gsl_node" output="screen">
+        <rosparam command="load" file="$(find infotaxis)/params/params.yaml" />
+    </node>
+</launch>
